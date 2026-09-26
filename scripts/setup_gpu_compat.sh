@@ -15,9 +15,13 @@ if [[ ! -f "$source_dir/libnvidia-ml.so.580.173.02" ]]; then
 fi
 mkdir -p "$libdir"
 for source_file in "$source_dir"/*.so.580.173.02; do
-  cp -a "$source_file" "$libdir/"
+  target_file="$libdir/${source_file##*/}"
+  if [[ -L "$target_file" ]]; then
+    rm "$target_file"
+  fi
+  cp -a "$source_file" "$target_file"
   soname="$(readelf -d "$source_file" | sed -n 's/.*(SONAME).*\[\([^]]*\)\].*/\1/p' | head -1)"
-  if [[ -n "$soname" ]]; then
+  if [[ -n "$soname" && "$soname" != "${source_file##*/}" ]]; then
     ln -sfn "${source_file##*/}" "$libdir/$soname"
   fi
 done
@@ -27,4 +31,3 @@ cat > "$root/toolchains/nvidia-580.173.02/nvidia_icd.json" <<EOF
 EOF
 "$root/cross-building-floor-nav/scripts/with_gpu_compat.sh" "$root/toolchains/nvidia-580.173.02/nvidia-smi" --query-gpu=name,memory.total,driver_version --format=csv,noheader
 "$root/cross-building-floor-nav/scripts/with_gpu_compat.sh" vulkaninfo --summary 2>&1 | grep -E 'deviceName|driverInfo' | head -12
-

@@ -12,7 +12,7 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 printf 'started: %s\n' "$(date -Is)"
 printf 'status: installing uv\n' > "$root/logs/isaac51.status"
 python3 -m pip install --prefix "$root/toolchains/uv" uv
-uv_bin="$root/toolchains/uv/bin/uv"
+uv_bin="$root/toolchains/uv/local/bin/uv"
 "$uv_bin" --version
 printf 'status: installing Python 3.11\n' > "$root/logs/isaac51.status"
 "$uv_bin" python install 3.11

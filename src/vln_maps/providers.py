@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 USER_AGENT = "CrossBuildingFloorNavResearch/0.1 (small cached OSM queries)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_FALLBACK_URL = "https://overpass.private.coffee/api/interpreter"
 AMAP_BASE = "https://restapi.amap.com"
 
 
@@ -76,7 +77,13 @@ def osm_overpass_snapshot(bbox: tuple[float, float, float, float]) -> dict:
         f"node[entrance]({s:.7f},{w:.7f},{n:.7f},{e:.7f});"
         f");out body geom;"
     )
-    result = _json_request(OVERPASS_URL, {"data": query}, method="POST", timeout=85)
+    try:
+        result = _json_request(OVERPASS_URL, {"data": query}, method="POST", timeout=85)
+    except MapServiceError as exc:
+        if "HTTP 5" not in str(exc):
+            raise
+        time.sleep(2)
+        result = _json_request(OVERPASS_FALLBACK_URL, {"data": query}, method="POST", timeout=85)
     if not isinstance(result, dict) or "elements" not in result:
         raise MapServiceError("Overpass response has no elements")
     return result
@@ -98,7 +105,15 @@ def coarse_osm_prior(snapshot: dict) -> dict:
             allowed_tags = {key: tags[key] for key in ("highway", "foot", "access", "surface") if key in tags}
         else:
             continue
-        retained.append({key: element[key] for key in ("type", "id", "geometry", "members") if key in element} | {"tags": allowed_tags})
+        visible = {key: element[key] for key in ("type", "id", "geometry") if key in element}
+        if kind == "relation":
+            # A coarse footprint needs outer rings, not inner member details.
+            visible["members"] = [
+                {"role": "outer", "geometry": member["geometry"]}
+                for member in element.get("members", [])
+                if member.get("role") == "outer" and "geometry" in member
+            ]
+        retained.append(visible | {"tags": allowed_tags})
     return {"provider": "OSM", "coordinate_system": "WGS84", "elements": retained}
 
 

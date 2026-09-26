@@ -10,11 +10,18 @@ class MapContractTests(unittest.TestCase):
             {"type": "node", "id": 2, "lat": 1, "lon": 2, "tags": {"entrance": "yes"}},
             {"type": "way", "id": 3, "geometry": [], "tags": {"highway": "footway", "indoor": "yes"}},
             {"type": "way", "id": 4, "geometry": [], "tags": {"highway": "footway"}},
+            {"type": "relation", "id": 5, "members": [
+                {"role": "outer", "ref": 100, "geometry": [{"lat": 1, "lon": 2}]},
+                {"role": "inner", "ref": 101, "geometry": [{"lat": 3, "lon": 4}]},
+            ], "tags": {"building": "yes", "name": "B"}},
         ]}
         prior = coarse_osm_prior(raw)
-        self.assertEqual(len(prior["elements"]), 2)
+        self.assertEqual(len(prior["elements"]), 3)
         self.assertEqual(prior["elements"][0]["tags"], {"building": "yes", "name": "A"})
         self.assertEqual(prior["elements"][1]["tags"], {"highway": "footway"})
+        self.assertEqual(prior["elements"][2]["members"], [
+            {"role": "outer", "geometry": [{"lat": 1, "lon": 2}]},
+        ])
 
     def test_public_query_radius_is_bounded(self):
         with self.assertRaises(ValueError):
