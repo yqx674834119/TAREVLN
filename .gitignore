@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/
+downloads/
+envs/
+cache/
+tmp/
+logs/
+toolchains/
+secrets/
+*.usd
+*.usda
+*.usdc
+

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cross-building-floor-nav"
+version = "0.1.0"
+description = "Coarse geographic priors for cross-building and cross-floor navigation"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+vln-maps = "vln_maps.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
