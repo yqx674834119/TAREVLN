@@ -18,6 +18,8 @@ PYTHONPATH=src python3 -m vln_maps.cli osm-place harbour-city "Harbour City, Hon
 
 The output is `data/osm/<slug>/raw.json`, `prior.json`, and `metadata.json`. Review the resolved centroid and building identities before defining A/B; a search match alone is not a verified campus boundary. Data attribution: © OpenStreetMap contributors, ODbL. Public Nominatim is used at most once per place; cached results are reused. The Overpass request is spatially bounded and cached. Bulk data acquisition should use a regional extract instead of public services.
 
+The current 400 m HKUST(GZ) snapshot has 29 building features and only 4 outdoor walkway features; Harbour City has 231 buildings and 448 walkway features. These are small map-acquisition checks, not validated navigable site graphs. The synthetic A/B simulator is intentionally independent of both real-world snapshots until building identities, floor plans, legal access and connection ground truth are supplied.
+
 ## AMap adapter
 
 Apply for a **Web 服务 API** key. Put it in a `0600` file under `~/VLN/secrets/amap-web-key` on Host 5090, or export `AMAP_WEB_KEY` in a private shell. Do not commit or print it. The CLI takes the file via `--key-file` and returns a structured `MISSING_AMAP_KEY` status if absent. The adapter and keyless error path are implemented; live AMap calls cannot be validated until a key is available. Examples after provisioning:
@@ -57,3 +59,12 @@ MENAGERIE_CACHE_DIR=~/VLN/cache/mujoco_menagerie MUJOCO_GL=egl \
 The report and frames are `data/sim/demo/mujoco_smoke.json`, `mujoco_smoke.png` (scene overview), and `mujoco_go2_a5f.png` (robot closeup). This smoke test checks only that the Go2 asset compiles in the campus scene, remains supported at A/F5 for 400 physics steps, and can be rendered through the project-local NVIDIA library path. The static `oracle.json` declares elevator and portal transitions for a future simulator skill API; they are **not** working robot actions. The companion `prior.json` deliberately omits those connections.
 
 `~/VLN/logs/isaac51.status` and `~/VLN/logs/isaac51-install.log` show high-fidelity simulator installation progress. The setup may take substantial disk space and time. Once it finishes, a separately reviewed first-run EULA step and an Isaac scene/Go2 check are still needed.
+
+After you read and accept the [NVIDIA Omniverse license](https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html), the prepared stage-only check is:
+
+```bash
+OMNI_KIT_ACCEPT_EULA=YES scripts/with_gpu_compat.sh \
+  ~/VLN/envs/isaac51/bin/python sim/run_isaac_stage_smoke.py
+```
+
+This command has not yet been run. The license flag must be set by the person accepting the terms; the project never sets it automatically.

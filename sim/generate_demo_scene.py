@@ -99,7 +99,7 @@ def generate(output: Path) -> dict:
     (output / "prior.json").write_text(json.dumps(public_prior, indent=2) + "\n")
     (output / "oracle.json").write_text(json.dumps(oracle, indent=2) + "\n")
     return {"stage": str(stage_file), "slabs": 8, "connectors": 5,
-            "warning": "Geometry generated; Isaac/Go2/elevator runtime not yet validated"}
+            "warning": "Geometry only; MuJoCo Go2 smoke is separate, Isaac/elevator not validated"}
 
 
 if __name__ == "__main__":
