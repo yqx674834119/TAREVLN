@@ -7,6 +7,7 @@ import json
 import math
 import hashlib
 import shutil
+import sys
 from pathlib import Path
 import time
 import traceback
@@ -22,6 +23,8 @@ ap.add_argument("--preview", action="store_true")
 ap.add_argument("--spawn", type=float, nargs=3)
 ap.add_argument("--yaw", type=float, default=0.)
 ap.add_argument("--checkpoint", type=Path)
+ap.add_argument("--odometry", choices=["ideal", "gicp"], default="ideal")
+ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="legacy11")
 args = ap.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
@@ -29,7 +32,9 @@ private = ROOT / "data/sim/office/private"
 out = ROOT / "data/sim/office/runs" / args.name
 out.mkdir(parents=True, exist_ok=False)
 report = {"status": "starting", "success": False, "policy": "SysNav native TARE + DeepSeek Flash vision task adapter",
-          "robot": "articulated Go2 with recorded simulation-only checkpoint", "odometry": "ideal simulator pose",
+          "robot": "articulated Go2 with recorded simulation-only checkpoint", "odometry": args.odometry,
+          "localization_control_ready": False, "physical_hardware_ready": False,
+          "lidar_profile": args.lidar_profile,
           "mode": "preview" if args.preview else "geometry_only" if args.geometry_only else "vlm_task",
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
           "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
@@ -39,7 +44,8 @@ archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "config/office-ros.yaml",
-                 "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch"]:
+                 "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch", "scripts/odometry_worker.py",
+                 *[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_localization').glob('*.py')]]:
     file = ROOT / relative
     if file.exists():
         target = archive / relative
@@ -59,6 +65,7 @@ app = SimulationApp({"headless": True, "open_usd": str(private / "scene.usda"), 
                      "multi_gpu": False, "active_gpu": 0, "physics_gpu": 0, "anti_aliasing": 0,
                      "width": 640, "height": 480, "fast_shutdown": True})
 worker = None
+odometry = None
 try:
     import numpy as np
     from PIL import Image
@@ -66,10 +73,12 @@ try:
     from omni.physx import get_physx_scene_query_interface, get_physx_simulation_interface
     from pxr import Gf, UsdPhysics, PhysxSchema, PhysicsSchemaTools
     from isaacsim.core.api import World
-    from isaacsim.core.utils.rotations import quat_to_rot_matrix
+    from isaacsim.core.utils.rotations import quat_to_rot_matrix, rot_matrix_to_quat
     from isaacsim.sensors.camera import Camera
     from go2_policy import Go2Policy
     from office_sandbox import OfficeProcess
+    sys.path.insert(0, str(ROOT/'src'))
+    from vln_localization.process import OdometryProcess
 
     oracle_file = private / ("oracle.json" if args.task == "meeting" else "oracle_lounge.json")
     oracle = json.loads(oracle_file.read_text()) if oracle_file.exists() else {}
@@ -120,20 +129,36 @@ try:
                        "separation": float(d.separation)}
                       for d in data[header.contact_data_offset:header.contact_data_offset+header.num_contact_data]]
             t = float(world.current_time)
-            contact_stream.write(json.dumps({"time":t,"robot":robot,"environment":env,"points":points})+"\n")
+            contact_stream.write(json.dumps({"time":t,"robot":robot,"environment":env,"points":points,
+                "event_type":str(header.type),"data_offset":header.contact_data_offset,
+                "data_count":header.num_contact_data,"callback_data_length":len(data)})+"\n")
             accumulate_contact(contacts, robot, env, t, points)
     subscription = get_physx_simulation_interface().subscribe_contact_report_events(contact_callback)
     stderr = open(out / "worker.log", "w")
     if not args.preview:
         worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task)
+    if args.odometry == 'gicp':
+        odometry = OdometryProcess(ROOT, out/'odometry', out)
+        odom_trace = (out/'odometry/poses.jsonl').open('w')
+        # Public initialization: robot starts level, at nominal standing height.
+        # Neither the initial world XY nor world yaw is supplied to navigation.
+        estimated_pose = np.eye(4)
+        estimated_pose[2, 3] = .4
+        previous_estimate, pose_time, estimated_velocity = None, None, np.zeros(3)
+        odometry_errors, odometry_rot_errors, odometry_times = [], [], []
+        report['sensor_model'] = 'rigid base-mounted instantaneous virtual lidar and RGB-D; no noise or IMU fusion'
+        report['odometry_initialization'] = 'relative origin, level orientation, nominal base height 0.4 m'
+    else:
+        report['sensor_model'] = 'legacy world-stabilized virtual lidar and RGB-D'
     trace = open(out / "trajectory.jsonl", "w")
     command = np.zeros(3)
     action = {}
     samples, distance, dwell = 0, 0., 0.
     last_pos = np.asarray(spawn)
     start = time.monotonic()
-    # A virtual 360 x 11-channel scanning lidar, not a MID360 noise simulation.
-    angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad([-40,-25,-15,-7,0,7,15,25,40,55,70])]
+    # Neither ray pattern is a calibrated model of a physical Go2/MID360 sensor.
+    elevations = [-40,-25,-15,-7,0,7,15,25,40,55,70] if args.lidar_profile == 'legacy11' else np.linspace(-40,70,64)
+    angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad(elevations)]
     for step in range(int(args.max_seconds/.005)):
         if (out / "STOP").exists():
             report["status"] = "operator_stopped"
@@ -153,20 +178,65 @@ try:
         obs = {"time": t, "position": pos.tolist(), "orientation": quat.tolist(), "velocity": vel.tolist(), "yaw": yaw}
         if step % 40 == 0:
             points = []
-            origin = pos + np.array([0.,0.,.45])
+            raw_points = []
+            mount = np.array([0.,0.,.45])
+            origin = pos + (rot @ mount if odometry else mount)
             for a, e in angles:
-                direction = np.array([math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)])
+                local_direction = np.array([math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)])
+                direction = rot @ local_direction if odometry else local_direction
                 hit = query.raycast_closest(tuple(map(float, origin)), tuple(map(float, direction)), 10.)
                 if hit["hit"] and hit["distance"] > .4:
+                    if odometry and any(str(hit.get(k, '')).startswith('/World/Go2') for k in ('rigidBody', 'collision')):
+                        continue
                     xyz = origin + direction*hit["distance"]
                     points.append([*xyz.tolist(), 0.])
+                    if odometry:
+                        raw_points.append((mount + local_direction*hit['distance']).tolist())
             obs["points"] = points
+            if odometry:
+                # Save failed frames too; these files stay evaluator-private.
+                np.savez_compressed(out/f'raw_scan_{step:07d}.npz', points_base_xyz=np.asarray(raw_points,dtype=np.float32), time=t)
+                np.savez_compressed(out/f'scan_{step:07d}.npz', points=np.asarray(points,dtype=np.float32), time=t, position=pos, quaternion=quat)
+                result = odometry.ask(t, raw_points)
+                if not result.get('valid'):
+                    command[:] = 0
+                    (out/'odometry/failure.json').write_text(json.dumps({'time':t, **result},indent=2))
+                    raise RuntimeError('LiDAR odometry failed: '+str(result.get('reason')))
+                estimated_pose = np.asarray(result['odom_from_base'])
+                estimated_pose[2, 3] += .4
+                if previous_estimate is not None:
+                    estimated_velocity = estimated_pose[:3,:3].T @ ((estimated_pose[:3,3]-previous_estimate[:3,3])/(t-pose_time))
+                previous_estimate, pose_time = estimated_pose.copy(), t
+                registered = np.asarray(raw_points) @ estimated_pose[:3,:3].T + estimated_pose[:3,3]
+                obs['points'] = np.column_stack((registered, np.zeros(len(registered)))).tolist()
+                # All truth transforms below are evaluator-only and never sent to either worker.
+                truth_pose = np.eye(4); truth_pose[:3,:3] = rot; truth_pose[:3,3] = pos
+                if 'evaluation_world_from_odometry' not in report:
+                    report['evaluation_world_from_odometry'] = (truth_pose @ np.linalg.inv(estimated_pose)).tolist()
+                aligned = np.asarray(report['evaluation_world_from_odometry']) @ estimated_pose
+                delta = np.linalg.inv(truth_pose) @ aligned
+                error = float(np.linalg.norm(delta[:3,3]))
+                angle_error = math.acos(float(np.clip((np.trace(delta[:3,:3])-1)/2,-1,1)))
+                odometry_errors.append(error); odometry_rot_errors.append(angle_error)
+                odometry_times.append(result['processing_seconds'])
+                odom_trace.write(json.dumps({'time':t, 'estimate':result, 'truth_pose':truth_pose.tolist(),
+                    'aligned_estimate':aligned.tolist(), 'translation_error_m':error, 'rotation_error_rad':angle_error})+'\n')
+                odom_trace.flush()
+        if odometry:
+            estimated_rot, estimated_pos = estimated_pose[:3,:3], estimated_pose[:3,3]
+            obs.update(position=estimated_pos.tolist(), orientation=rot_matrix_to_quat(estimated_rot).tolist(),
+                       velocity=estimated_velocity.tolist(), yaw=math.atan2(estimated_rot[1,0],estimated_rot[0,0]), pose_time=pose_time)
         if step % 400 == 0:
             views = []
             for index, offset in enumerate([0,math.pi/2,math.pi,-math.pi/2]):
                 cyaw = yaw + offset
                 cq = np.array([math.cos(cyaw/2),0.,0.,math.sin(cyaw/2)])
                 cp = pos + np.array([0.,0.,.45])
+                if odometry:
+                    view_rot = np.array([[math.cos(offset),-math.sin(offset),0.],
+                                         [math.sin(offset),math.cos(offset),0.], [0.,0.,1.]])
+                    cp = pos + rot @ mount
+                    cq = rot_matrix_to_quat(rot @ view_rot)
                 camera.set_world_pose(cp, cq, camera_axes="world")
                 # Each virtual camera orientation needs fresh render history.
                 for _ in range(8):
@@ -183,9 +253,11 @@ try:
                 camera_time = camera.get_current_frame().get("rendering_time")
                 np.savez_compressed(out / f"depth_{step:07d}_{index}.npz", depth=depth, time=t, camera_time=camera_time, position=cp, quaternion=cq)
                 depth_mm = (np.clip(np.nan_to_num(depth, nan=0., posinf=0., neginf=0.), 0, 65.535)*1000).astype('<u2')
+                policy_rotation = estimated_rot @ view_rot if odometry else quat_to_rot_matrix(cq)
+                policy_position = estimated_pos + estimated_rot @ mount if odometry else cp
                 views.append({"label": ["front","left","rear","right"][index], "jpeg": base64.b64encode(data.getvalue()).decode(),
                               "depth_mm": base64.b64encode(zlib.compress(depth_mm.tobytes())).decode(), "image_size": [640,480],
-                              "rotation": quat_to_rot_matrix(cq).tolist(), "position": cp.tolist(), "intrinsics": [float(k[0,0]),float(k[1,1]),float(k[0,2]),float(k[1,2])]})
+                              "rotation": policy_rotation.tolist(), "position": policy_position.tolist(), "intrinsics": [float(k[0,0]),float(k[1,1]),float(k[0,2]),float(k[1,2])]})
                 samples += 1
             obs["views"] = views
             # Review only: never supplied to the navigation or VLM process.
@@ -197,7 +269,8 @@ try:
             if review_rgb is not None and review_rgb.size:
                 Image.fromarray(review_rgb[:,:,:3]).save(out / f"chase_{step:07d}.jpg")
         if "points" in obs:
-            np.savez_compressed(out / f"scan_{step:07d}.npz", points=np.asarray(obs["points"],dtype=np.float32), time=t, position=pos, quaternion=quat)
+            # Preserve legacy evaluator scan format: true world-frame scan, never read by policy.
+            np.savez_compressed(out / f"scan_{step:07d}.npz", points=np.asarray(points,dtype=np.float32), time=t, position=pos, quaternion=quat)
         if worker and t > 2:
             action = worker.ask(obs)
             command = np.asarray(action["cmd_vel"], dtype=float)
@@ -237,6 +310,16 @@ except (Exception, KeyboardInterrupt) as error:
         report.update(simulation_seconds=t, distance_m=distance, final_position=pos.tolist(), final_action=action)
     traceback.print_exc()
 finally:
+    if odometry:
+        odometry.close()
+        if 'odom_trace' in locals():
+            odom_trace.close()
+        if 'odometry_errors' in locals() and odometry_errors:
+            report['localization_evaluation'] = {'alignment':'first pose only; evaluator private',
+                'frames':len(odometry_errors), 'translation_rmse_m':float(np.sqrt(np.mean(np.square(odometry_errors)))),
+                'maximum_translation_error_m':max(odometry_errors), 'final_translation_error_m':odometry_errors[-1],
+                'maximum_rotation_error_deg':math.degrees(max(odometry_rot_errors)),
+                'processing_p95_ms':float(np.quantile(odometry_times,.95)*1000)}
     if worker:
         worker.close()
     if "contacts" in locals():

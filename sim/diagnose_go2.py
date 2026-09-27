@@ -13,7 +13,8 @@ parser.add_argument("--physics", choices=("baseline", "isaaclab", "exact_lab"), 
 parser.add_argument("--snapshot-only", action="store_true")
 parser.add_argument("--disable-sleep", action="store_true")
 parser.add_argument("--controller", choices=('legacy','lab'), default='legacy')
-parser.add_argument("--ground", choices=('box','plane'), default='box')
+parser.add_argument("--ground", choices=('box','plane','plane_clean'), default='box')
+parser.add_argument("--ground-torsion-radius", type=float, help='Controlled override of ground/threshold torsional friction patch radii')
 parser.add_argument("--yaw", type=float, default=0.)
 parser.add_argument("--threshold", type=float, default=0.)
 parser.add_argument("--checkpoint", type=Path)
@@ -23,8 +24,9 @@ out = Path(args.out)
 out.mkdir(parents=True, exist_ok=False)
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
-source_files=[Path(__file__),*[ROOT/'sim'/name for name in ('go2_policy.py','go2_lab_policy.py','go2_runtime_audit.py')]]
+source_files=[Path(__file__),ROOT/'config/readiness/gait-gates.json',*[ROOT/'sim'/name for name in ('go2_policy.py','go2_lab_policy.py','go2_runtime_audit.py')]]
 source_hashes={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in source_files}
+gates=json.loads((ROOT/'config/readiness/gait-gates.json').read_text())
 for file in source_files:
     shutil.copyfile(file, out / file.name)
 
@@ -50,8 +52,16 @@ try:
                                dynamic_friction=1. if args.physics=='exact_lab' else .6, restitution=0.)
     if args.physics=='exact_lab':
         PhysxSchema.PhysxMaterialAPI.Apply(stage.GetPrimAtPath('/World/GroundMaterial')).CreateFrictionCombineModeAttr('multiply')
-    if args.ground=='plane':
+    if args.ground in ('plane', 'plane_clean'):
         world.scene.add(GroundPlane('/World/Ground',z_position=0.,physics_material=material))
+        if args.ground == 'plane_clean':
+            # Isaac 5.1 GroundPlane additionally enables collision on /geom.
+            # Keep only the analytic plane, explicitly binding its material.
+            for prim in stage.Traverse():
+                if str(prim.GetPath()).startswith('/World/Ground/') and prim.HasAPI(UsdPhysics.CollisionAPI):
+                    UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Set(prim.GetTypeName() == 'Plane')
+                    if prim.GetTypeName() == 'Plane':
+                        UsdShade.MaterialBindingAPI.Apply(prim).Bind(material.material, materialPurpose='physics')
     else:
         world.scene.add(FixedCuboid("/World/Ground", position=np.array([0., 0., -.05]),
                                    scale=np.array([100., 100., .1]), physics_material=material))
@@ -59,6 +69,13 @@ try:
         world.scene.add(FixedCuboid("/World/Threshold", position=np.array([math.cos(args.yaw), math.sin(args.yaw), args.threshold / 2]),
                                    orientation=np.array([math.cos(args.yaw/2),0,0,math.sin(args.yaw/2)]),
                                    scale=np.array([.1, 20., args.threshold]), physics_material=material))
+    if args.ground_torsion_radius is not None:
+        if args.ground_torsion_radius < 0: raise ValueError('Negative torsional radius')
+        for prim in stage.Traverse():
+            if str(prim.GetPath()).startswith(('/World/Ground', '/World/Threshold')) and prim.HasAPI(UsdPhysics.CollisionAPI):
+                collision = PhysxSchema.PhysxCollisionAPI.Apply(prim)
+                collision.CreateTorsionalPatchRadiusAttr(args.ground_torsion_radius)
+                collision.CreateMinTorsionalPatchRadiusAttr(args.ground_torsion_radius)
     camera = None
     if args.video:
         from isaacsim.sensors.camera import Camera
@@ -97,6 +114,17 @@ try:
             if prim.HasAPI(UsdPhysics.CollisionAPI):
                 UsdShade.MaterialBindingAPI.Apply(prim).Bind(material.material, materialPurpose="physics")
     world.reset()
+    ground_audit = []
+    for prim in stage.Traverse():
+        if str(prim.GetPath()).startswith('/World/Ground') and prim.HasAPI(UsdPhysics.CollisionAPI):
+            bound, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose='physics')
+            ground_audit.append({'path':str(prim.GetPath()), 'type':prim.GetTypeName(),
+                'enabled':UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get(),
+                'physics_material':str(bound.GetPath()) if bound else None,
+                'contact_offset':PhysxSchema.PhysxCollisionAPI(prim).GetContactOffsetAttr().Get(),
+                'torsional_patch_radius':PhysxSchema.PhysxCollisionAPI(prim).GetTorsionalPatchRadiusAttr().Get(),
+                'minimum_torsional_patch_radius':PhysxSchema.PhysxCollisionAPI(prim).GetMinTorsionalPatchRadiusAttr().Get()})
+    (out/'ground-colliders.json').write_text(json.dumps(ground_audit, indent=2))
     policy.initialize()
     if args.physics in ("isaaclab", "exact_lab"):
         policy.robot.set_solver_position_iteration_count(4)
@@ -132,7 +160,9 @@ try:
             details = [{"position": list(d.position), "normal": list(d.normal), "impulse": list(d.impulse),
                         "separation": float(d.separation)}
                        for d in data[h.contact_data_offset:h.contact_data_offset+h.num_contact_data]]
-            record = {"t": float(world.current_time), "phase": current_phase, "colliders": paths, "points": details}
+            record = {"t": float(world.current_time), "phase": current_phase, "colliders": paths, "points": details,
+                      "event_type":str(h.type), "data_offset":h.contact_data_offset,
+                      "data_count":h.num_contact_data, "callback_data_length":len(data)}
             contact_stream.write(json.dumps(record) + "\n")
             for path in paths:
                 if path.startswith("/World/Go2/") and details:
@@ -206,7 +236,7 @@ try:
     loaded_feet={p.split('/collisions/')[0].split('/')[-1] for pair,item in pairs.items()
                  if not item['nonfoot'] and item['support_steps']>0
                  for p in pair.split(' | ') if '_foot/' in p}
-    report = {"physics": args.physics, "ground":args.ground,"controller":args.controller, "disable_sleep":args.disable_sleep, "yaw": args.yaw, "threshold": args.threshold,
+    report = {"physics": args.physics, "ground":args.ground,"ground_torsion_radius":args.ground_torsion_radius,"controller":args.controller, "disable_sleep":args.disable_sleep, "yaw": args.yaw, "threshold": args.threshold,
               "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
               "joint_names": policy.robot.dof_names, "phases": metrics, "contact_pairs": pairs,
               "nonfoot_pairs_after_settling": nonfoot,
@@ -214,7 +244,7 @@ try:
               "loaded_feet":sorted(loaded_feet),
               "contact_passed": len(loaded_feet)==4 and not nonfoot,
               "source_hashes":source_hashes}
-    gates=json.loads((ROOT/'config/readiness/gait-gates.json').read_text())
+    report['gates']=gates
     report['tracking_passed'] = all(max(v['rms_velocity_error'][:2]) <= gates['maximum_steady_translation_rms_error_mps']
                                    and v['rms_velocity_error'][2] <= gates['maximum_steady_yaw_rms_error_radps']
                                    for k,v in metrics.items() if k != 'settle')

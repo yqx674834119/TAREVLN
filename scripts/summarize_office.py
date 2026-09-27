@@ -43,7 +43,10 @@ ax.scatter(*positions[0,:2],s=80,marker='o',color='#16a34a',label='Start')
 ax.scatter(*positions[-1,:2],s=90,marker='X',color='#dc2626',label='Final position')
 for i,call in enumerate(calls,1):
  p=call.get('context',{}).get('position')
- if p:ax.annotate(str(i),p[:2],fontsize=8,color='#7c3aed')
+ if p:
+  if report.get('evaluation_world_from_odometry'):
+   p=(np.asarray(report['evaluation_world_from_odometry'])@np.array([*p,1.]))[:3]
+  ax.annotate(str(i),p[:2],fontsize=8,color='#7c3aed')
 ax.set_aspect('equal');ax.set_xlabel('World x (m)');ax.set_ylabel('World y (m)');ax.grid(alpha=.2)
 ax.set_title(f"{run.name}: {report['status']}\nVLM call numbers; LiDAR points; evaluator goal areas")
 ax.legend(loc='best');fig.tight_layout();fig.savefig(out/'trajectory.png',dpi=150);plt.close(fig)

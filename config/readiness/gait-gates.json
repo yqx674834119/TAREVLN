@@ -9,5 +9,7 @@
   "maximum_steady_yaw_rms_error_radps": 0.15,
   "minimum_upright_cosine": 0.90,
   "maximum_nonfoot_physical_contact_steps": 0,
+  "nominal_ground_torsion_radius_m": 0.0,
+  "contact_model_note": "Rigid point-contact baseline, matching default PhysX collision schema and Office mesh colliders. Explicitly override FixedCuboid's 1.0/0.8 m torsional patch defaults. Preserve ordinary friction and solid floor/threshold geometry. Finite foot-patch sensitivity is separate; no real contact calibration is claimed.",
   "scope": "Engineering simulation controller gate. Does not qualify joint-level deployment on a physical robot. Threshold crossing must be witnessed, not inferred from spawning a barrier."
 }

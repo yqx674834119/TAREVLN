@@ -1,0 +1,12 @@
+{
+  "scope": "Screening on ideal simulated scan recordings only; does not complete hardware localization gate G4.",
+  "development_recording": "office-lounge-006-surface",
+  "validation_recordings": ["office-lounge-005", "office-vlm-007-door-start"],
+  "alignment": "first pose only; no trajectory fitting",
+  "maximum_translation_error_m": 0.30,
+  "maximum_final_translation_error_m": 0.20,
+  "maximum_rotation_error_deg": 5.0,
+  "maximum_processing_p95_ms": 200.0,
+  "require_all_frames_valid": true,
+  "prohibited_estimator_inputs": ["truth pose", "world-registered points", "oracle", "scene files"]
+}

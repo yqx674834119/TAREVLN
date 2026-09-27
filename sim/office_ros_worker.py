@@ -40,6 +40,7 @@ class Bridge(Node):
         self.cloud_pub = self.create_publisher(PointCloud2, "/registered_scan", 5)
         self.goal_pub = self.create_publisher(PointStamped, "/mission/subgoal", 1)
         self.command, self.command_time = [0., 0., 0.], -100.
+        self.last_pose_time = None
         self.candidates = {"candidates": [], "time": -100.}
         self.waypoint, self.path_nodes = None, 0
         self.counts = {"waypoints": 0, "paths": 0, "cmd_vel": 0, "candidate_sets": 0, "mission_paths": 0}
@@ -73,13 +74,17 @@ class Bridge(Node):
     def ingest(self, obs):
         stamp = Time(sec=int(obs["time"]), nanosec=int((obs["time"] % 1) * 1e9))
         self.clock_pub.publish(Clock(clock=stamp))
-        odom = Odometry(header=Header(stamp=stamp, frame_id="map"), child_frame_id="vehicle")
+        pose_time = obs.get('pose_time', obs['time'])
+        pose_stamp = Time(sec=int(pose_time), nanosec=int((pose_time % 1) * 1e9))
+        odom = Odometry(header=Header(stamp=pose_stamp, frame_id="map"), child_frame_id="vehicle")
         p, q = obs["position"], obs["orientation"]
         odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z = p
         odom.pose.pose.orientation.w, odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z = q
         odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.linear.z = obs["velocity"]
-        self.odom_pub.publish(odom)
-        self.odom_scan_pub.publish(odom)
+        if self.last_pose_time != pose_time:
+            self.odom_pub.publish(odom)
+            self.odom_scan_pub.publish(odom)
+            self.last_pose_time = pose_time
         if "points" in obs:
             points = np.asarray(obs["points"], dtype="<f4").reshape(-1, 4)
             cloud = PointCloud2(header=Header(stamp=stamp, frame_id="map"), height=1, width=len(points),

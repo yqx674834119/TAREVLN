@@ -11,6 +11,9 @@ ap=argparse.ArgumentParser()
 ap.add_argument('--kind',choices=('gait','office'),required=True)
 ap.add_argument('--checkpoint',type=Path,required=True)
 ap.add_argument('--out',type=Path,required=True)
+ap.add_argument('--ground-torsion-radius',type=float)
+ap.add_argument('--odometry',choices=('ideal','gicp'),default='ideal')
+ap.add_argument('--lidar-profile',choices=('legacy11','uniform64'),default='legacy11')
 args=ap.parse_args()
 root=Path(__file__).resolve().parents[1]
 args.checkpoint=args.checkpoint.resolve()
@@ -18,13 +21,16 @@ args.out=args.out.resolve()
 args.out.mkdir(parents=True,exist_ok=False)
 config=root/'config/readiness'/('gait-gates.json' if args.kind=='gait' else 'office-suite.json')
 cfg=json.loads(config.read_text())
+if args.kind=='gait' and args.ground_torsion_radius is None:
+    args.ground_torsion_radius=cfg['nominal_ground_torsion_radius_m']
 source=[p for directory in ('src','sim','config','patches') for p in (root/directory).rglob('*')
         if p.is_file() and '__pycache__' not in p.parts and p.suffix not in ('.pyc',)]
 source.extend([Path(__file__),args.checkpoint])
 def manifest():
     return {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in source}
 frozen=manifest()
-(args.out/'freeze.json').write_text(json.dumps({'files':frozen,'config':cfg,'kind':args.kind},indent=2))
+(args.out/'freeze.json').write_text(json.dumps({'files':frozen,'config':cfg,'kind':args.kind,
+    'ground_torsion_radius':args.ground_torsion_radius,'odometry':args.odometry,'lidar_profile':args.lidar_profile},indent=2))
 results=[]
 if args.kind=='gait':
     cases=list(itertools.product(cfg['initial_yaws_rad'],cfg['threshold_heights_m']))
@@ -37,11 +43,14 @@ for i,case in enumerate(cases):
         yaw,threshold=case
         run=args.out/name
         command=['sim/diagnose_go2.py','--yaw',str(yaw),'--threshold',str(threshold),'--out',str(run)]
+        if args.ground_torsion_radius is not None:
+            command+=['--ground-torsion-radius',str(args.ground_torsion_radius)]
     else:
         task,spawn,yaw=case
         run=root/'data/sim/office/runs'/name
         command=['sim/run_office.py','--name',name,'--task',task,'--spawn',*map(str,spawn),
-                 '--yaw',str(yaw),'--max-seconds',str(cfg['max_seconds'])]
+                 '--yaw',str(yaw),'--max-seconds',str(cfg['max_seconds']),
+                 '--odometry',args.odometry,'--lidar-profile',args.lidar_profile]
     command=['bash','scripts/with_gpu_compat.sh',str(root.parent/'envs/isaac51/bin/python'),'-u',*command,
              '--checkpoint',str(args.checkpoint)]
     with (args.out/f'{name}.log').open('w') as log:
