@@ -1,0 +1,28 @@
+{
+  "version": "sysnav-office-object-v1",
+  "scope": "Custom single-scene object approach acceptance, not benchmark SR/SPL",
+  "frozen_before_run": "Runs after ui-20260928-014610-2e945; previous reports are not rescored",
+  "tasks": {
+    "lounge": {
+      "maximum_footprint_distance_m": 1.0,
+      "maximum_grounding_error_m": 0.4,
+      "base_z_range_m": [0.05, 0.7],
+      "minimum_stop_seconds": 1.0,
+      "maximum_stop_speed_m_s": 0.06,
+      "requires_visible_target": true,
+      "authoring_evidence": "Exact world AABBs from private/asset-inventory.json, inspected against Isaac RGB. Two reception armchairs satisfy the same instruction. Bounds are independent of predicted objects and robot stopping locations.",
+      "targets": [
+        {
+          "prim": "/World/Office/SM_Armchair3_234",
+          "min": [-6.0688257732610715, 29.78279820883663, -0.0000007361589176068387],
+          "max": [-5.125174911184859, 30.91720195837939, 0.7899993184265529]
+        },
+        {
+          "prim": "/World/Office/SM_Armchair4_237",
+          "min": [-6.226004923679096, 32.065557897403714, -0.0000004309831369498501],
+          "max": [-5.139995302424192, 33.29844109956453, 0.7899996236023347]
+        }
+      ]
+    }
+  }
+}

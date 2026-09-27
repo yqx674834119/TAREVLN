@@ -20,6 +20,8 @@ ROOT = PROJECT.parent
 sys.path.insert(0, str(PROJECT/'src'))
 from vln_policy.office_tasks import TASKS
 
+from vln_policy.sysnav_tasks import TASKS as SYSNAV_TASKS
+
 
 def read_json(path, default=None):
     try:
@@ -64,7 +66,9 @@ class Console:
                         self.episodes[str(e['episode_id'])] = e
 
     def catalog(self):
-        return dict(tasks=[dict(id='office:'+k, kind='office', title={'lounge':'寻找等候休息区','meeting':'寻找会议区'}[k],
+        return dict(tasks=[dict(id='sysnav:'+k,kind='office',title=v[0],instruction=v[1],
+                               label='Isaac · Go2 · 完整 SysNav · DeepSeek') for k,v in SYSNAV_TASKS.items()]+
+                   [dict(id='office:'+k, kind='office', title={'lounge':'寻找等候休息区','meeting':'寻找会议区'}[k],
                                instruction=v['instruction'], label='Isaac · Go2 · TARE + VLM') for k,v in TASKS.items()] +
                    [dict(id='habitat:'+k, kind='habitat', title='R2R-CE · Episode '+k,
                          instruction=e['instruction']['instruction_text'], label='Habitat · 导航代理')
@@ -89,7 +93,7 @@ class Console:
                     continue
                 report = read_json(p/'report.json')
                 records['office:'+p.name] = dict(id='office:'+p.name,kind='office',path=p,
-                    name=p.name, task_id='office:'+report.get('task','lounge'), status=report.get('status','unknown'),
+                    name=p.name, task_id=('sysnav:' if report.get('mode')=='sysnav_full' else 'office:')+report.get('task','lounge'), status=report.get('status','unknown'),
                     success=report.get('success',False), stamp=p.stat().st_mtime)
         for p in (self.root/'outputs/benchmarks').glob('*/vlm/*'):
             if not p.is_dir() or not (p/'preflight.json').exists():
@@ -151,6 +155,8 @@ class Console:
             for path in sorted(p.glob('chase_*.jpg')):
                 index = int(path.stem.split('_')[1])
                 front = p/f'rgb_{index:07d}_0.jpg'
+                if report.get('mode')=='sysnav_full':
+                    front = p/f'panorama_{index:07d}.jpg'
                 frames.append(dict(t=round(index*.005+.015,3),chase=self.image_url(r,path),
                                    rgb=self.image_url(r,front) if front.exists() else None))
             for path in sorted((p/'agent/vlm').glob('call-*/response.json')):
@@ -160,13 +166,23 @@ class Console:
                 decisions.append(dict(index=len(decisions)+1,t=context.get('simulation_time',context.get('time',0)),
                     purpose=context.get('purpose','decision'),latency=d.get('latency_seconds'),
                     **public_decision(result)))
+            for call in read_lines(p/'agent/api.jsonl'):
+                result=call.get('result',{})
+                summary={k:v for k,v in result.items() if k not in ('steps','reason')}
+                decisions.append(dict(index=call['id'],t=call.get('time') or 0,
+                    purpose=call['purpose'],latency=call.get('seconds'),
+                    evidence=json.dumps(summary,ensure_ascii=False),
+                    reason=result.get('reason', '已返回结构化结果' if call['status']=='ok' else 'API 调用失败：'+call.get('error_type','unknown'))))
             current = rows[-1] if rows else {}
             progress = dict(time=current.get('time',0), speed=current.get('speed'),
                 action=current.get('action',{}).get('reason'),
                 vlm_calls=current.get('action',{}).get('vlm_calls',len(decisions)),
-                path_nodes=current.get('action',{}).get('path_nodes'))
+                path_nodes=current.get('action',{}).get('path_nodes'),
+                modules=current.get('action',{}).get('counts',{}),
+                rooms=current.get('action',{}).get('rooms'),objects=current.get('action',{}).get('objects'))
             result = {k:report.get(k) for k in ['success','status','simulation_seconds','wall_seconds','distance_m',
-                'contact_quality_passed','odometry','surface_geometry','physical_hardware_ready'] if k in report}
+                'contact_quality_passed','odometry','surface_geometry','physical_hardware_ready',
+                'acceptance_passed','evaluation_definition','independent_object_evaluation','instruction'] if k in report}
         else:
             report = read_json(p/'result.json')
             raw = read_json(p/'trajectory.json')
@@ -193,13 +209,24 @@ class Console:
         frames.sort(key=lambda f:f['t'])
         result = dict(**{k:v for k,v in r.items() if k!='path'}, frames=frames,trajectory=trajectory,
             decisions=decisions,progress=progress,result=result,
-            semantics='Isaac PhysX · articulated Go2 · native TARE + VLM' if r['kind']=='office' else 'Habitat-Sim · kinematic navigation agent · VLM baseline',
+            semantics=('Isaac PhysX · Go2 · 完整 SysNav · DeepSeek · 全景 RGB' if report.get('mode')=='sysnav_full' else 'Isaac PhysX · articulated Go2 · TARE + custom VLM') if r['kind']=='office' else 'Habitat-Sim · kinematic navigation agent · VLM baseline',
             unit='s' if r['kind']=='office' else 'step')
         self.cache[identifier] = (now,result)
         return result
 
     def command(self, task_id, duration, name):
         base = ['bash', str(self.project/'scripts/with_gpu_compat.sh')]
+        if task_id.startswith('sysnav:') and task_id[7:] in SYSNAV_TASKS:
+            if duration not in (20,30,60,120,300):
+                raise ValueError('Unsupported duration')
+            checkpoint=self.project/'data/readiness/training/go2-control-v5-rails/model_3595.pt'
+            if not checkpoint.exists() or not (self.root/'assets/sysnav/provenance.json').exists():
+                raise ValueError('Full SysNav models or Go2 checkpoint unavailable')
+            command=base+[str(self.root/'envs/isaac51/bin/python'),'-u','sim/run_sysnav_full.py',
+                '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
+                '--odometry','gicp','--lidar-profile','uniform64','--api-proxy','http://127.0.0.1:18119']
+            record_path=self.project/'data/sim/office/runs'/name
+            return command,record_path,'office:'+name,record_path
         if task_id.startswith('office:') and task_id[7:] in TASKS:
             if duration not in (20,30,60,120,300):
                 raise ValueError('Unsupported duration')
@@ -232,7 +259,7 @@ class Console:
                 process = subprocess.Popen(command,cwd=self.project,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,
                     env={**os.environ,'OMNI_KIT_ACCEPT_EULA':'YES','HABITAT_SIM_LOG':'quiet','MAGNUM_LOG':'quiet',
                          'HTTPS_PROXY':'http://127.0.0.1:18119'},start_new_session=True)
-            job = dict(id=name,name=name,task_id=task_id,kind=task_id.split(':')[0],process=process,
+            job = dict(id=name,name=name,task_id=task_id,kind='office' if task_id.startswith('sysnav:') else task_id.split(':')[0],process=process,
                 record_path=path,record_id=record_id,stop_root=stop_root,started=time.time())
             self.jobs[name] = job
             return dict(job_id=name,record_id=record_id)

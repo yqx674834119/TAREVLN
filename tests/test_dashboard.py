@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -38,6 +39,28 @@ class DashboardTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.console.stop('another-session-job')
 
+    def test_sysnav_launch_uses_full_native_stack(self):
+        checkpoint=self.project/'data/readiness/training/go2-control-v5-rails/model_3595.pt'
+        checkpoint.parent.mkdir(parents=True);checkpoint.touch()
+        manifest=self.root/'assets/sysnav/provenance.json'
+        manifest.parent.mkdir(parents=True);manifest.write_text('{}')
+        command,_,record,_=self.console.command('sysnav:lounge',120,'native')
+        self.assertIn('sim/run_sysnav_full.py',command)
+        self.assertNotIn('sim/run_office.py',command)
+        self.assertEqual(command[command.index('--odometry')+1],'gicp')
+        self.assertEqual(record,'office:native')
+
+    def test_native_decisions_are_reviewable_without_private_steps(self):
+        run=self.project/'data/sim/office/runs/native'
+        (run/'agent').mkdir(parents=True)
+        (run/'report.json').write_text(json.dumps(dict(task='lounge',mode='sysnav_full',status='completed',success=True)))
+        (run/'agent/api.jsonl').write_text(json.dumps(dict(id=1,time=1.,purpose='process_room_navigation_query',
+            status='ok',result=dict(steps=['private deliberation'],final_answer=2,reason='Doorway is visible')))+'\n')
+        detail=self.console.detail('office:native')
+        self.assertEqual(detail['task_id'],'sysnav:lounge')
+        self.assertEqual(detail['decisions'][0]['reason'],'Doorway is visible')
+        self.assertNotIn('private deliberation',json.dumps(detail))
+
     def test_duplicate_simulation_launch_is_rejected(self):
         proc = Mock();proc.poll.return_value=None
         self.console.jobs['own'] = dict(process=proc)
@@ -50,7 +73,7 @@ class DashboardTest(unittest.TestCase):
         (run/'frame.jpg').write_bytes(b'jpg')
         outside = self.root/'private.jpg';outside.write_bytes(b'secret')
         (run/'link.jpg').symlink_to(outside)
-        self.assertEqual(self.console.media('office:test','frame.jpg'),run/'frame.jpg')
+        self.assertEqual(self.console.media('office:test','frame.jpg'),(run/'frame.jpg').resolve())
         for name in ['../../../../../../private.jpg','link.jpg','report.json']:
             with self.assertRaises(ValueError):
                 self.console.media('office:test',name)

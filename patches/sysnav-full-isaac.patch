@@ -1,0 +1,801 @@
+From de4f6d08f7dda77ecde14dc7c88040648d4e3b66 Mon Sep 17 00:00:00 2001
+From: Codex <codex@local>
+Date: Mon, 28 Sep 2026 01:32:16 +0800
+Subject: [PATCH 1/2] Port native SysNav semantics to Isaac panoramic sensors
+ and DeepSeek
+
+---
+ .../include/representation/representation.h   |  4 ++
+ .../room_segmentation_node.h                  |  4 ++
+ .../sensor_coverage_planner_ground.h          |  4 ++
+ .../src/grid_world/grid_world.cpp             | 11 +++-
+ .../local_coverage_planner.cpp                | 10 ++-
+ .../sensor_coverage_planner_ground.cpp        | 16 +++--
+ .../viewpoint_manager/viewpoint_manager.cpp   |  3 +-
+ .../semantic_mapping/cloud_image_fusion.py    |  2 +-
+ .../semantic_mapping/detection_node.py        | 23 +++----
+ .../semantic_mapping/semantic_map_new.py      | 20 +++---
+ .../semantic_mapping/semantic_mapping_node.py | 14 ++---
+ .../semantic_mapping/utils.py                 |  3 +-
+ src/vlm_node/vlm_node/constants.py            | 10 ++-
+ src/vlm_node/vlm_node/deepseek_client.py      | 63 +++++++++++++++++++
+ src/vlm_node/vlm_node/utils.py                |  2 +-
+ src/vlm_node/vlm_node/vlm_reasoning_node.py   | 19 +++---
+ 16 files changed, 157 insertions(+), 51 deletions(-)
+ create mode 100644 src/vlm_node/vlm_node/deepseek_client.py
+
+diff --git a/src/exploration_planner/tare_planner/include/representation/representation.h b/src/exploration_planner/tare_planner/include/representation/representation.h
+index cab8125..9d46ae8 100644
+--- a/src/exploration_planner/tare_planner/include/representation/representation.h
++++ b/src/exploration_planner/tare_planner/include/representation/representation.h
+@@ -52,7 +52,11 @@
+ #include <string>
+ #include <chrono>
+ #include <opencv2/opencv.hpp>
++#if __has_include(<cv_bridge/cv_bridge.hpp>)
+ #include <cv_bridge/cv_bridge.hpp>
++#else
++#include <cv_bridge/cv_bridge.h>
++#endif
+ 
+ namespace representation_ns
+ {
+diff --git a/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h b/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
+index 00ded9d..8bdac49 100644
+--- a/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
++++ b/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
+@@ -43,7 +43,11 @@
+ 
+ // OpenCV
+ #include <opencv2/opencv.hpp>
++#if __has_include(<cv_bridge/cv_bridge.hpp>)
+ #include <cv_bridge/cv_bridge.hpp>
++#else
++#include <cv_bridge/cv_bridge.h>
++#endif
+ 
+ // Eigen
+ #include <Eigen/Dense>
+diff --git a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+index 5313247..884961b 100644
+--- a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
++++ b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+@@ -67,7 +67,11 @@
+ #include "visualization_msgs/msg/marker_array.hpp"
+ #include "visualization_msgs/msg/marker.hpp"
+ #include <opencv2/opencv.hpp>
++#if __has_include(<cv_bridge/cv_bridge.hpp>)
+ #include <cv_bridge/cv_bridge.hpp>
++#else
++#include <cv_bridge/cv_bridge.h>
++#endif
+ #include "tare_planner/msg/room_node.hpp"
+ #include "tare_planner/msg/room_node_list.hpp"
+ #include "tare_planner/msg/room_type.hpp"
+diff --git a/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp b/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
+index 291f7ea..2f82e84 100644
+--- a/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
++++ b/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
+@@ -17,6 +17,11 @@
+ 
+ namespace grid_world_ns
+ {
++static int SafeRoomId(const cv::Mat& mask, const Eigen::Vector3i& voxel) {
++  if (mask.empty() || voxel.x()<0 || voxel.y()<0 || voxel.x()>=mask.rows || voxel.y()>=mask.cols) return -1;
++  return mask.at<int>(voxel.x(), voxel.y());
++}
++
+ Cell::Cell(double x, double y, double z)
+   : in_horizon_(false)
+   , robot_position_set_(false)
+@@ -651,7 +656,7 @@ void GridWorld::UpdateCellStatus(const std::shared_ptr<viewpoint_manager_ns::Vie
+ 
+       Eigen::Vector3i viewpoint_pos_voxel = misc_utils_ns::point_to_voxel(
+           viewpoint_manager->GetViewPointPosition(viewpoint_ind), shift_, 1.0 / room_resolution_);
+-      int room_id = room_mask_.at<int>(viewpoint_pos_voxel.x(), viewpoint_pos_voxel.y());
++      int room_id = SafeRoomId(room_mask_, viewpoint_pos_voxel);
+       if (room_id == current_room_id_ || current_room_id_ == -1)
+       {
+         in_room_viewpoint_count++;
+@@ -665,7 +670,7 @@ void GridWorld::UpdateCellStatus(const std::shared_ptr<viewpoint_manager_ns::Vie
+     connection_point_geo.z = connection_point.z();
+     Eigen::Vector3i connection_point_voxel = misc_utils_ns::point_to_voxel(
+         connection_point_geo, shift_, 1.0 / room_resolution_);
+-    int room_id = room_mask_.at<int>(connection_point_voxel.x(), connection_point_voxel.y());
++    int room_id = SafeRoomId(room_mask_, connection_point_voxel);
+     if (room_id == current_room_id_ || current_room_id_ == -1 || in_room_viewpoint_count >= 3)
+     {
+       in_room = true;
+@@ -845,7 +850,7 @@ exploration_path_ns::ExplorationPath GridWorld::SolveGlobalTSP(
+           bool in_room = false;
+           Eigen::Vector3f connection_point_f(connection_point.x(), connection_point.y(), connection_point.z());
+           Eigen::Vector3i connection_point_voxel = misc_utils_ns::point_to_voxel(connection_point_f, shift_, 1.0 / room_resolution_);
+-          int room_id = room_mask_.at<int>(connection_point_voxel.x(), connection_point_voxel.y());
++          int room_id = SafeRoomId(room_mask_, connection_point_voxel);
+           if (room_id == current_room_id_ || current_room_id_ == -1)
+           {
+             in_room = true;
+diff --git a/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp b/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
+index f42b4b8..b8056b2 100644
+--- a/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
++++ b/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
+@@ -246,6 +246,7 @@ namespace local_coverage_planner_ns
+ 
+     sample_range =
+         std::min(parameters_.kGreedyViewPointSampleRange, sample_range);
++    if (sample_range <= 0) return;
+     std::random_device rd;
+     std::mt19937 gen(rd());
+     std::uniform_int_distribution<int> gen_next_queue_idx(0, sample_range - 1);
+@@ -337,20 +338,22 @@ namespace local_coverage_planner_ns
+         }
+       }
+ 
++      // Sample the current shrinking queue, not the original queue. Using its
++      // old length can select past end() after an erase and corrupt the heap.
+       // Randomly select the next point
+       int sample_range = 0;
+-      for (int i = 0; i < queue.size(); i++)
++      for (int i = 0; i < queue_copy.size(); i++)
+       {
+         if (use_frontier)
+         {
+-          if (queue[i].first >= parameters_.kMinAddFrontierPointNum)
++          if (queue_copy[i].first >= parameters_.kMinAddFrontierPointNum)
+           {
+             sample_range++;
+           }
+         }
+         else
+         {
+-          if (queue[i].first >= parameters_.kMinAddPointNum)
++          if (queue_copy[i].first >= parameters_.kMinAddPointNum)
+           {
+             sample_range++;
+           }
+@@ -358,6 +361,7 @@ namespace local_coverage_planner_ns
+       }
+       sample_range =
+           std::min(parameters_.kGreedyViewPointSampleRange, sample_range);
++      if (sample_range <= 0) break;
+       std::uniform_int_distribution<int> gen_next_queue_idx(0, sample_range - 1);
+       queue_idx = gen_next_queue_idx(gen);
+       cur_ind = queue_copy[queue_idx].second;
+diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+index 9193b06..0346b55 100644
+--- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
++++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+@@ -2034,7 +2034,7 @@ void SensorCoveragePlanner3D::CheckDoorCloudInRange()
+ void SensorCoveragePlanner3D::SendInitialWaypoint()
+ {
+   // send waypoint ahead
+-  double lx = 12.0;
++  double lx = 0.0; // Hold until observed geometry supports a path.
+   double ly = 0.0;
+   double dx = cos(robot_yaw_) * lx - sin(robot_yaw_) * ly;
+   double dy = sin(robot_yaw_) * lx + cos(robot_yaw_) * ly;
+@@ -2253,7 +2253,7 @@ void SensorCoveragePlanner3D::UpdateObjectVisibility()
+         }
+         Eigen::Vector3d current_viewpoint_pos(viewpoint.GetPosition().x,
+                                               viewpoint.GetPosition().y,
+-                                              viewpoint.GetPosition().z + 0.265); // make this to the height of the robot camera
++                                              viewpoint.GetPosition().z + 0.45); // make this to the height of the robot camera
+         Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+ 
+         if ((current_viewpoint_pos - object_pos).norm() > rep_sensor_range)
+@@ -2403,7 +2403,7 @@ void SensorCoveragePlanner3D::UpdateViewpointObjectVisibility()
+   representation_ns::ViewPointRep &current_viewpoint = representation_->GetViewPointRepNode(curr_viewpoint_rep_node_ind);
+   Eigen::Vector3d current_viewpoint_pos(current_viewpoint.GetPosition().x,
+                                         current_viewpoint.GetPosition().y,
+-                                        current_viewpoint.GetPosition().z + 0.265); // make this to the height of the robot camera
++                                        current_viewpoint.GetPosition().z + 0.45); // make this to the height of the robot camera
+   Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+   for (auto &id_object_pair : representation_->GetObjectNodeRepMapMutable())
+   {
+@@ -3313,6 +3313,13 @@ bool SensorCoveragePlanner3D::GetLookAheadPoint(
+ }
+ 
+ void SensorCoveragePlanner3D::PublishWaypoint() {
++  // Expose the original completion condition without changing planning logic.
++  static auto status_pub = this->create_publisher<std_msgs::msg::String>("/sysnav/status", 5);
++  std_msgs::msg::String status;
++  status.data = json({{"found", found_object_}, {"stop", ask_found_object_},
++      {"object_id", found_object_id_}, {"object_xyz", {found_object_position_.x, found_object_position_.y, found_object_position_.z}},
++      {"room_id", current_room_id_}, {"time", this->now().seconds()}}).dump();
++  status_pub->publish(status);
+   geometry_msgs::msg::PointStamped waypoint;
+   if (exploration_finished_ && near_home_ && kRushHome) {
+     // if the whole environment is explored, and the robot is near home, go back to home
+@@ -3508,6 +3515,7 @@ void SensorCoveragePlanner3D::CountDirectionChange() {
+ }
+ 
+ void SensorCoveragePlanner3D::execute() {
++  if (this->now().seconds() <= 0.0 || odomTime <= 0.0) return;
+   if (!kAutoStart && !start_exploration_) {
+     RCLCPP_INFO(this->get_logger(), "Waiting for start signal");
+     return;
+@@ -4115,7 +4123,7 @@ cv::Mat SensorCoveragePlanner3D::project_pcl_to_image(
+   cv::Mat image_projected = image.clone();
+   cv::Mat rotated_image = image.clone();
+   const float PI = 3.1415926f;
+-  const float camX = -0.12f, camY = -0.075f, camZ = 0.265f;
++  const float camX = 0.0f, camY = 0.0f, camZ = 0.45f;
+   const float camRoll = -1.5707963f, camPitch = 0.0f, camYaw = -1.5707963f;
+   const int imageWidth = 1920;
+   const int imageHeight = 640;
+diff --git a/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp b/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
+index 8f96ee4..a32156a 100644
+--- a/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
++++ b/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
+@@ -537,7 +537,8 @@ void ViewPointManager::CheckViewPointBoundaryCollision()
+ }
+ 
+ void ViewPointManager::CheckViewPointRoomBoundaryCollision()
+-{ 
++{
++  if (room_mask_.empty()) return;
+   // Check for the polygon boundary and nogo zones
+   for (int i = 0; i < vp_.kViewPointNumber; i++)
+   {
+diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+index 29e8909..cf4f6d1 100755
+--- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
++++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+@@ -71,7 +71,7 @@ def scan2pixels_wheelchair(laserCloud):
+     return scan2pixels(laserCloud, L2C_PARA, CAMERA_PARA, LIDAR_PARA)
+ 
+ def scan2pixels_mecanum_sim(laserCloud):
+-    CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.1, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}  # cropped 30 degree(160 pixels) in top and  30 degree(160 pixels) in bottom 
++    CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.45, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}  # cropped 30 degree(160 pixels) in top and  30 degree(160 pixels) in bottom 
+     LIDAR_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+ 
+     lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
+diff --git a/src/semantic_mapping/semantic_mapping/detection_node.py b/src/semantic_mapping/semantic_mapping/detection_node.py
+index 75cc420..c9883fa 100644
+--- a/src/semantic_mapping/semantic_mapping/detection_node.py
++++ b/src/semantic_mapping/semantic_mapping/detection_node.py
+@@ -4,7 +4,7 @@
+ # ========== Environment Setup ==========
+ import os
+ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+-os.environ["TORCH_CUDA_ARCH_LIST"] = "8.9"
++# Runtime torch wheel selects CUDA architecture.
+ 
+ # ========== Standard Library ==========
+ import time
+@@ -37,7 +37,7 @@ from tare_planner.msg import DetectionResult
+ 
+ class DetectNode(Node):
+     def __init__(self, device='cuda'):
+-        super().__init__('semantic_mapping_node')
++        super().__init__('detection_node')
+         self.CONFIG_DIR = Path(__file__).resolve().parent
+ 
+         self.detection_stamps = deque(maxlen=10)
+@@ -65,11 +65,12 @@ class DetectNode(Node):
+         self.text_prompt_list = np.array(self.text_prompt_list)
+         print(f"Text prompt: {self.text_prompt}")
+ 
+-        self.grounding_model = YOLO(self.CONFIG_DIR / "external/yolov8x-worldv2_cus.engine", task='detect')
+-        # self.grounding_model = YOLOE(self.CONFIG_DIR / "external/yoloe-11l-seg.engine", task="segment")
+-        self.grounding_model = YOLOE(self.CONFIG_DIR / "external/yoloe-26x-seg.engine", task="segment")
+-
+         self.device = device
++        self.grounding_model = YOLOE(os.environ["SYSNAV_YOLO_MODEL"], task='segment')
++        self.grounding_model.to(self.device)
++        import torch
++        embeddings = torch.load(os.environ["SYSNAV_TEXT_EMBEDDINGS"], map_location=self.device, weights_only=True)
++        self.grounding_model.set_classes(self.text_prompt_list.tolist(), embeddings)
+ 
+         if self.ANNOTATE:
+             self.box_annotator = sv.BoxAnnotator(color=ColorPalette.DEFAULT)
+@@ -86,7 +87,7 @@ class DetectNode(Node):
+             self.IMAGE_DIR = os.path.join('output/debug_mapper', 'image_gates')
+             self.VIEWPOINT_IMAGE_DIR = os.path.join(os.path.dirname(__file__), 'output/viewpoint_images')
+             if os.path.exists(self.ANNOTATE_OUT_DIR):
+-                os.system(f"rm -r {self.ANNOTATE_OUT_DIR}")
++                pass  # Run output is isolated; preserve existing evidence.
+             os.makedirs(self.ANNOTATE_OUT_DIR, exist_ok=True)
+ 
+         self.bridge = CvBridge()
+@@ -116,10 +117,10 @@ class DetectNode(Node):
+ 
+         cv_image: np.ndarray, shape (H, W, 3), BGR format
+         """
+-        image = cv_image[:, :, ::-1]  # BGR to RGB
++        image = cv_image  # Ultralytics numpy input is BGR.
+         # image = image.copy()
+         start_time = time.time()
+-        results = self.grounding_model.track(image, imgsz=(640, 1920), half=True, conf=self.grounding_score_thresh, persist=True, tracker=self.CONFIG_DIR / "config/botsort.yaml")
++        results = self.grounding_model.track(image, imgsz=(640, 1920), half=True, conf=self.grounding_score_thresh, persist=True, tracker=self.CONFIG_DIR / "config/botsort.yaml", device=self.device, verbose=False)
+         time1 = time.time()
+         boxes = results[0].boxes  # Boxes 对象
+ 
+@@ -172,8 +173,8 @@ class DetectNode(Node):
+         detections = self.inference(image)
+         detection_time = time.time()
+ 
++        image_anno = image.copy()
+         if self.ANNOTATE:
+-            image_anno = image.copy()
+ 
+             bboxes = detections['bboxes']
+             labels = detections['labels']
+@@ -239,4 +240,4 @@ def main(args=None):
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/src/semantic_mapping/semantic_mapping/semantic_map_new.py b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
+index df93160..cd4eb18 100644
+--- a/src/semantic_mapping/semantic_mapping/semantic_map_new.py
++++ b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
+@@ -1,7 +1,7 @@
+ import cv2
+ import numpy as np
+ import open3d as o3d
+-from pytorch3d.ops import box3d_overlap
++ # Unused PyTorch3D import removed; IoU_3D_Bbox uses Shapely below.
+ from scipy.spatial import cKDTree
+ from sklearn.cluster import DBSCAN
+ from scipy.spatial.transform import Rotation
+@@ -19,7 +19,7 @@ from .tools import ros2_bag_utils as ros2_bag_utils
+ from .utils import generate_colors, extract_meta_class, get_corners_from_box3d_torch, find_nearby_points, map_label_to_color
+ from .visualizer import VisualizerRerun
+ 
+-from tare_planner.msg import ObjectNode
++from tare_planner.msg import ObjectNode, ObjectNodeList
+ 
+ from time import time
+ import os
+@@ -576,7 +576,7 @@ class ObjMapper():
+         delete_msg.header.frame_id = 'map'
+         delete_msg.object_id = single_obj.obj_id
+         delete_msg.label = single_obj.get_dominant_label()
+-        delete_msg.status = "deleted"
++        delete_msg.status = False
+ 
+         centroid = single_obj.infer_centroid(diversity_percentile=self.percentile_thresh, regularized=True)
+         if centroid is not None:
+@@ -584,7 +584,7 @@ class ObjMapper():
+             delete_msg.position.y = float(centroid[1])
+             delete_msg.position.z = float(centroid[2])
+ 
+-        self.object_node_pub.publish(delete_msg)
++        self.object_node_pub.publish(ObjectNodeList(header=delete_msg.header, nodes=[delete_msg]))
+ 
+         for obj_id in single_obj.obj_id:
+             marker_bbox = Marker()
+@@ -644,7 +644,7 @@ class ObjMapper():
+     #         # Get the dominant id
+     #         object_node_msg.object_id = single_obj.obj_id
+     #         object_node_msg.label = single_obj.get_dominant_label()
+-    #         object_node_msg.status = getattr(single_obj, 'publish_status', 'new')
++    #         object_node_msg.status = True
+ 
+     #         object_node_msg.position.x = float(centroid[0])
+     #         object_node_msg.position.y = float(centroid[1])
+@@ -677,6 +677,9 @@ class ObjMapper():
+         return bbox_msg_list, text_msg_list
+ 
+     def to_ros2_msgs(self, stamp, viewpoint_id):
++        batch = ObjectNodeList()
++        batch.header.stamp = Time(seconds=int(stamp), nanoseconds=int((stamp % 1)*1e9)).to_msg()
++        batch.header.frame_id = "map"
+         # colors_to_choose = generate_colors(len(self.single_obj_list), is_int=False)
+         seconds = int(stamp)
+         nanoseconds = int((stamp - seconds) * 1e9)
+@@ -787,7 +790,7 @@ class ObjMapper():
+                 object_node_msg.label = "Potential Target"
+             else:
+                 object_node_msg.label = label
+-            object_node_msg.status = getattr(single_obj, 'publish_status', 'new')
++            object_node_msg.status = True
+ 
+             object_node_msg.position.x = float(centroid[0])
+             object_node_msg.position.y = float(centroid[1])
+@@ -809,12 +812,15 @@ class ObjMapper():
+             object_node_msg.is_asked_vlm = single_obj.is_asked_vlm
+             object_node_msg.viewpoint_id = viewpoint_id if not single_obj.updated_by_vlm else -1
+             
+-            self.object_node_pub.publish(object_node_msg)
++            batch.nodes.append(object_node_msg)
+             single_obj.last_published_stamp = stamp  # update last published stamp
+             single_obj.updated = False  # reset updated flag after publishing
+             single_obj.updated_by_vlm = False
+             single_obj.publish_status = 'unchanged'  # reset publish status after publishing
+ 
++        if batch.nodes:
++            self.object_node_pub.publish(batch)
++
+         if len(points_list) != 0:
+             points = np.concatenate(points_list, axis=0)
+             colors = np.concatenate(colors_list, axis=0)
+diff --git a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+index 2139689..a47ff5f 100644
+--- a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
++++ b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+@@ -69,8 +69,8 @@ except ModuleNotFoundError:
+     print(f"Captioner not found. Fall back to no captioning version.")
+ 
+ def load_models():
+-    checkpoint = "src/semantic_mapping/semantic_mapping/external/sam2/checkpoints/sam2.1_hiera_base_plus.pt"
+-    model_cfg = "configs/sam2.1/sam2.1_hiera_b+.yaml"
++    checkpoint = os.environ["SYSNAV_SAM_CHECKPOINT"]
++    model_cfg = os.environ.get("SYSNAV_SAM_CONFIG", "configs/sam2.1/sam2.1_hiera_b+.yaml")
+     mask_predictor = SAM2ImagePredictor(build_sam2(model_cfg, checkpoint))
+ 
+     return mask_predictor
+@@ -173,14 +173,14 @@ class MappingNode(Node):
+             self.ANNOTATE_OUT_DIR = os.path.join('output/debug_mapper', 'segmentation_results')
+             self.VIEWPOINT_IMAGE_DIR = os.path.join('output/viewpoint_images')
+ 
+-            os.system(f"rm -rf {self.ANNOTATE_OUT_DIR}")  # Clear previous results
+-            os.system(f"rm -rf {self.VIEWPOINT_IMAGE_DIR}")  # Clear previous results
++            pass  # Run output is isolated; preserve existing evidence.
++            pass  # Run output is isolated; preserve existing evidence.
+             
+             os.makedirs(self.ANNOTATE_OUT_DIR, exist_ok=True)
+             os.makedirs(self.VIEWPOINT_IMAGE_DIR, exist_ok=True)
+ 
+             self.base_image_dir= os.path.join('output/object_images')
+-            os.system(f"rm -rf {self.base_image_dir}")  # Clear previous images
++            pass  # Run output is isolated; preserve existing evidence.
+             os.makedirs(self.base_image_dir, exist_ok=True)  # Create base directory
+ 
+         self.anchor_object = ""
+@@ -419,7 +419,7 @@ class MappingNode(Node):
+             # sam2
+             sam2_start = time.time()
+             with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+-                self.mask_predictor.set_image(image)
++                self.mask_predictor.set_image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+ 
+                 if len(detections_tracked['bboxes']) > 0:
+                     masks, _, _ = self.mask_predictor.predict(
+@@ -784,4 +784,4 @@ def main(args=None):
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
+diff --git a/src/semantic_mapping/semantic_mapping/utils.py b/src/semantic_mapping/semantic_mapping/utils.py
+index 013d5d1..f7addf4 100755
+--- a/src/semantic_mapping/semantic_mapping/utils.py
++++ b/src/semantic_mapping/semantic_mapping/utils.py
+@@ -87,8 +87,7 @@ def find_neighbouring_stamps(stamp_list, q):
+         return stamp_list[-1], stamp_list[-1]
+     return stamp_list[i_stamp - 1], stamp_list[i_stamp]
+ 
+-import spacy
+-nlp = spacy.load("en_core_web_sm")
++# NLP calls are commented upstream; do not load an unused model at import time.
+ def extract_meta_class(label, class_template):
+     # doc = nlp(str(label))
+     # Include tokens that are nouns or verbs acting as nouns (gerunds)
+diff --git a/src/vlm_node/vlm_node/constants.py b/src/vlm_node/vlm_node/constants.py
+index 909fc6b..5ffd581 100644
+--- a/src/vlm_node/vlm_node/constants.py
++++ b/src/vlm_node/vlm_node/constants.py
+@@ -8,7 +8,7 @@ DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
+ # Explicit via VLM_PROVIDER=gemini|qwen, or auto-detected from which key is set.
+ # If both keys are set and VLM_PROVIDER is unset, Gemini wins (preserves prior behavior).
+ VLM_PROVIDER = os.environ.get("VLM_PROVIDER", "").lower()
+-if VLM_PROVIDER not in ("gemini", "qwen"):
++if VLM_PROVIDER not in ("gemini", "qwen", "deepseek"):
+     if GEMINI_API_KEY:
+         VLM_PROVIDER = "gemini"
+     elif DASHSCOPE_API_KEY:
+@@ -16,7 +16,13 @@ if VLM_PROVIDER not in ("gemini", "qwen"):
+     else:
+         VLM_PROVIDER = "gemini"  # will fail at connect time; surfaces missing-key error clearly
+ 
+-if VLM_PROVIDER == "qwen":
++if VLM_PROVIDER == "deepseek":
++    from pathlib import Path
++    VLM_API_KEY = Path(os.environ["DEEPSEEK_API_KEY_FILE"]).read_text().strip()
++    VLM_BASE_URL = "https://api.deepseek.com"
++    MODEL_NAME = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash")
++    MODEL_NAME_LITE = MODEL_NAME
++elif VLM_PROVIDER == "qwen":
+     VLM_API_KEY = DASHSCOPE_API_KEY
+     VLM_BASE_URL = "https://dashscope-us.aliyuncs.com/compatible-mode/v1"
+     MODEL_NAME = os.environ.get("QWEN_MODEL", "qwen3.6-plus")
+diff --git a/src/vlm_node/vlm_node/deepseek_client.py b/src/vlm_node/vlm_node/deepseek_client.py
+new file mode 100644
+index 0000000..7bbf9c9
+--- /dev/null
++++ b/src/vlm_node/vlm_node/deepseek_client.py
+@@ -0,0 +1,63 @@
++"""OpenAI-compatible transport for the upstream SysNav typed query interface.
++
++Only the wire format changes: JSON mode plus local Pydantic validation. Native
++query queues, prompts, images, and result consumers remain in vlm_reasoning_node.
++"""
++import inspect
++import json
++import os
++from pathlib import Path
++import threading
++import time
++from types import SimpleNamespace
++
++from openai import OpenAI
++
++
++class DeepSeekClient:
++    def __init__(self, api_key, base_url):
++        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=40, max_retries=2)
++        self.beta = SimpleNamespace(chat=SimpleNamespace(completions=self))
++        self.lock = threading.Lock()
++        self.limit = threading.BoundedSemaphore(3)
++        self.calls = 0
++        self.log = Path(os.environ.get('SYSNAV_API_LOG', 'debug/api.jsonl'))
++
++    def parse(self, *, model, messages, response_format):
++        frame = inspect.currentframe().f_back
++        purpose = frame.f_code.co_name
++        node = frame.f_locals.get('self')
++        simulation_time = node.get_clock().now().nanoseconds/1e9 if node is not None else None
++        messages = list(messages)
++        schema = response_format.model_json_schema()
++        messages[0] = {**messages[0], 'content': messages[0]['content'] +
++                       '\nReturn a JSON object matching this schema: ' + json.dumps(schema) +
++                       '\nGive only concise observations and the decision reason. Do not provide private deliberation.'}
++        with self.limit:
++            with self.lock:
++                self.calls += 1
++                call_id = self.calls
++                if call_id > int(os.environ.get('SYSNAV_MAX_API_CALLS', '150')):
++                    raise RuntimeError('SysNav API call budget exhausted')
++            start = time.monotonic()
++            row = {'id': call_id, 'purpose': purpose, 'model': model, 'time': simulation_time,
++                   'images': sum(b.get('type') == 'image_url' for m in messages
++                                 for b in (m['content'] if isinstance(m['content'], list) else []))}
++            try:
++                result = self.client.chat.completions.create(
++                    model=model, messages=messages, temperature=0, max_tokens=1800,
++                    response_format={'type': 'json_object'}, extra_body={'thinking': {'type': 'disabled'}})
++                raw = result.choices[0].message.content
++                parsed = response_format.model_validate_json(raw)
++                row.update(status='ok', result=parsed.model_dump(), usage=result.usage.model_dump())
++                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(parsed=parsed, content=raw))])
++            except Exception as exc:
++                # Record only exception class: HTTP messages may contain credentials.
++                row.update(status='error', error_type=type(exc).__name__)
++                raise RuntimeError(f'DeepSeek {purpose} failed: {type(exc).__name__}') from None
++            finally:
++                row['seconds'] = time.monotonic() - start
++                with self.lock:
++                    self.log.parent.mkdir(parents=True, exist_ok=True)
++                    with self.log.open('a') as stream:
++                        stream.write(json.dumps(row) + '\n')
+diff --git a/src/vlm_node/vlm_node/utils.py b/src/vlm_node/vlm_node/utils.py
+index 3e2baba..e4d32b7 100644
+--- a/src/vlm_node/vlm_node/utils.py
++++ b/src/vlm_node/vlm_node/utils.py
+@@ -9,7 +9,7 @@ def project_bbox3d(img, bbox3d, transform_matrix, platform='mecanum'):
+         CAMERA_PARA= {"x": -0.24, "y": -0.0, "z": 0.14, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
+     else: # for mecanum simulation platform
+         LIDAR_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+-        CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.1, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
++        CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.45, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
+ 
+     lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
+     lidarRoll = LIDAR_PARA["roll"] #  lidarRollStack[imageIDPointer]
+diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+index 7ae46d3..d6428f8 100644
+--- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
++++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+@@ -19,6 +19,7 @@ from vlm_node.constants import (
+ from tare_planner.msg import RoomType, RoomEarlyStop1, VlmAnswer, ObjectType, NavigationQuery, TargetObjectInstruction, TargetObject, TargetObjectWithSpatial
+ from rviz_2d_overlay_msgs.msg import OverlayText
+ from openai import OpenAI
++from vlm_node.deepseek_client import DeepSeekClient
+ from pydantic import BaseModel
+ import os
+ import json
+@@ -45,7 +46,7 @@ class VLMNode(Node):
+         self.get_logger().info(f"Log directory: {self.log_dir}")
+ 
+         try:
+-            self.vlm_model = OpenAI(
++            self.vlm_model = (DeepSeekClient if VLM_PROVIDER == "deepseek" else OpenAI)(
+                 api_key=VLM_API_KEY,
+                 base_url=VLM_BASE_URL,
+             )
+@@ -95,7 +96,7 @@ class VLMNode(Node):
+         """
+ 
+         self.ROOM_FINISH_NAVIGATION_PROMPT = """
+-        You are a wheeled mobile robot operating in an indoor environment. Your goal is to efficiently find a target object based on a human-provided instruction in a new house. The current room you are in has been fully explored. To achieve the goal, you must select the next room to explore from rooms listed in a JSON file, aiming to complete the task as quickly as possible.
++        You are a mobile robot operating in an indoor environment. Your goal is to efficiently find a target object based on a human-provided instruction in a new house. The current room you are in has been fully explored. To achieve the goal, you must select the next room to explore from rooms listed in a JSON file, aiming to complete the task as quickly as possible.
+ 
+         ### Provided Information:
+         1. A specific instruction describing the task.
+@@ -117,13 +118,13 @@ class VLMNode(Node):
+ 
+         ### Output Format:
+         Your response should include:
+-        - 'steps': The chain of thought leading to the decision.
++        - 'steps': An empty array. Use 'reason' for a brief evidence-based decision summary.
+         - `final_answer`: The `room id` of the next room to explore.
+         - `reason`: The rationale for selecting this room.
+         """
+ 
+         self.room_early_stop_1_prompt = """
+-        You are a wheeled mobile robot operating in an indoor environment. Your task is to efficiently locate a target object. You will be provided with an image of a nearby room and an image of the current room you are exploring. Based on these observations, you must decide whether to stop exploring the current room and move to the other room in order to find the target object as quickly as possible. If you believe that the nearby room is more likely to contain the target object and decide to early stop, you should return `early_stop` as `True`.
++        You are a mobile robot operating in an indoor environment. Your task is to efficiently locate a target object. You will be provided with an image of a nearby room and an image of the current room you are exploring. Based on these observations, you must decide whether to stop exploring the current room and move to the other room in order to find the target object as quickly as possible. If you believe that the nearby room is more likely to contain the target object and decide to early stop, you should return `early_stop` as `True`.
+         
+         Besides, you should first check whether the image of the nearby room contains the target object(ignore all the spatial, self-attribute and room constrain, only considering the object type). If the nearby room image contains the target object, you should also return `early_stop` as `True`.
+         """
+@@ -298,7 +299,7 @@ class VLMNode(Node):
+         self.mapping_timer = self.create_timer(0.1, self.vlm_node_callback)
+ 
+         # debug
+-        os.system("rm -rf debug")
++        # Run output is isolated; never remove previous evidence.
+         os.makedirs("debug", exist_ok=True)
+         os.makedirs("debug/room_type", exist_ok=True)
+         os.makedirs("debug/room_navigation", exist_ok=True)
+@@ -391,7 +392,7 @@ class VLMNode(Node):
+             output: str
+ 
+         class Result(BaseModel):
+-            # steps: list[Step]
++            # steps: list[Step] = []
+             room_type: str
+         try:
+             # Process the room type query
+@@ -517,7 +518,7 @@ class VLMNode(Node):
+             explanation: str
+             output: str
+         class Result(BaseModel):
+-            steps: list[Step]
++            steps: list[Step] = []
+             final_answer: int
+             reason: str
+         try:
+@@ -564,7 +565,7 @@ class VLMNode(Node):
+             self.get_logger().info(f"Published room navigation answer: {selected_room}")
+ 
+             # publish the reason to the text overlay
+-            text = f"Next Room ID: {selected_room}" + f"\nReason: {answer.reason}" + "\nThinking Steps:\n" + '\n'.join([f"{step.explanation}" for step in answer.steps])
++            text = f"Next Room ID: {selected_room}" + f"\nReason: {answer.reason}" + "\nObservations:\n" + '\n'.join([f"{step.explanation}" for step in answer.steps])
+             self.publish_text_overlay(text)
+ 
+             # save the input JSON and answer to 2 text files for debugging, using timestamp to avoid overwriting
+@@ -591,7 +592,7 @@ class VLMNode(Node):
+             output: str
+ 
+         class Result(BaseModel):
+-            steps: list[Step]
++            steps: list[Step] = []
+             early_stop: bool
+ 
+         # # save image for debugging
+-- 
+2.55.0
+
+
+From 8496d75ba92b200979b2cfb445155c1cfd417420 Mon Sep 17 00:00:00 2001
+From: Codex <codex@local>
+Date: Mon, 28 Sep 2026 01:45:40 +0800
+Subject: [PATCH 2/2] Fix ROS object identifiers and constrain task
+ decomposition to detector vocabulary
+
+---
+ .../semantic_mapping/cloud_image_fusion.py               | 3 ++-
+ .../semantic_mapping/semantic_map_new.py                 | 6 +++---
+ .../semantic_mapping/semantic_mapping_node.py            | 2 +-
+ src/vlm_node/vlm_node/vlm_reasoning_node.py              | 9 +++++++--
+ 4 files changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+index cf4f6d1..7f68c6b 100755
+--- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
++++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+@@ -102,6 +102,7 @@ def scan2pixels_mecanum_sim(laserCloud):
+     vertPixelID = (CAMERA_PARA["width"] / (2 * np.pi) * np.arctan(xyz[:, 1] / horiDis) + CAMERA_PARA["height"] / 2 + 1).astype(int)
+     pixelDepth = horiDis
+ 
++    in_view = (vertPixelID >= 0) & (vertPixelID < CAMERA_PARA["height"])
+     horiPixelID = np.clip(horiPixelID, 0, CAMERA_PARA["width"] - 1)
+     vertPixelID = np.clip(vertPixelID, 0, CAMERA_PARA["height"] - 1)
+ 
+@@ -118,7 +119,7 @@ def scan2pixels_mecanum_sim(laserCloud):
+         depth_map = minimum_filter(depth_map, size=(2*neighborhood+1), mode='nearest')
+ 
+     # --- Step3: 保留最近点 ---
+-    remove_mask = pixelDepth >= depth_map[vertPixelID, horiPixelID] + 0.15
++    remove_mask = (~in_view) | (pixelDepth >= depth_map[vertPixelID, horiPixelID] + 0.15)
+ 
+     # 过滤后的结果
+     horiPixelID[remove_mask] = -1
+diff --git a/src/semantic_mapping/semantic_mapping/semantic_map_new.py b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
+index cd4eb18..b5eae18 100644
+--- a/src/semantic_mapping/semantic_mapping/semantic_map_new.py
++++ b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
+@@ -574,7 +574,7 @@ class ObjMapper():
+         delete_msg = ObjectNode()
+         delete_msg.header.stamp = Time(seconds=seconds, nanoseconds=nanoseconds).to_msg()
+         delete_msg.header.frame_id = 'map'
+-        delete_msg.object_id = single_obj.obj_id
++        delete_msg.object_id = [int(i) for i in single_obj.obj_id]
+         delete_msg.label = single_obj.get_dominant_label()
+         delete_msg.status = False
+ 
+@@ -642,7 +642,7 @@ class ObjMapper():
+     #         object_node_msg.header.frame_id = 'map'
+             
+     #         # Get the dominant id
+-    #         object_node_msg.object_id = single_obj.obj_id
++    #         object_node_msg.object_id = [int(i) for i in single_obj.obj_id]
+     #         object_node_msg.label = single_obj.get_dominant_label()
+     #         object_node_msg.status = True
+ 
+@@ -783,7 +783,7 @@ class ObjMapper():
+             object_node_msg.header.frame_id = 'map'
+             
+             # Get the dominant id
+-            object_node_msg.object_id = single_obj.obj_id
++            object_node_msg.object_id = [int(i) for i in single_obj.obj_id]
+ 
+             # if this object is target object and haven't been checked by the vlm, we give it a fake label
+             if label == self.target_object and not single_obj.is_asked_vlm:
+diff --git a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+index a47ff5f..1f4df3b 100644
+--- a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
++++ b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+@@ -754,7 +754,7 @@ class MappingNode(Node):
+             return
+         for obj in target_objs:
+             object_type_query = ObjectType()
+-            object_type_query.object_id = obj['object_id']
++            object_type_query.object_id = int(obj['object_id'])
+             object_type_query.img_path = obj['img_path']
+             object_type_query.labels = obj['labels']
+             self.object_type_query_pub.publish(object_type_query)
+diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+index d6428f8..152db0a 100644
+--- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
++++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+@@ -21,6 +21,7 @@ from rviz_2d_overlay_msgs.msg import OverlayText
+ from openai import OpenAI
+ from vlm_node.deepseek_client import DeepSeekClient
+ from pydantic import BaseModel
++from typing import Literal
+ import os
+ import json
+ import time
+@@ -181,6 +182,10 @@ class VLMNode(Node):
+             self.object_list += value['prompts']
+         self.get_logger().info(f"Object List: {self.object_list}")
+ 
++        self.instruction_decomposition_prompt += (
++            "\nUse canonical object categories from the JSON schema. Keep subtypes in attributes, "
++            "e.g. upholstered armchair -> target_object chair, attribute_condition upholstered armchair. "
++            "Keep all room, spatial, and appearance constraints in the decomposition.")
+         self.skip_set = ["next", "dynamic"]
+ 
+         self.bridge = CvBridge()
+@@ -754,11 +759,11 @@ class VLMNode(Node):
+             return
+         
+         class Result(BaseModel):
+-            target_object: str
++            target_object: Literal[tuple(self.label_template.keys())]
+             room_condition: str
+             spatial_condition: str
+             attribute_condition: str
+-            anchor_object: str
++            anchor_object: Literal[("", *self.label_template.keys())]
+             attribute_condition_anchor: str
+         try:
+             completion = self.vlm_model.beta.chat.completions.parse(
+-- 
+2.55.0
+

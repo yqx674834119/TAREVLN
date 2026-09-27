@@ -1,0 +1,103 @@
+{
+  "status": "completed",
+  "success": true,
+  "acceptance_passed": true,
+  "instruction": "Find a black chair with a padded seat, padded backrest and armrests in the reception area. Stop close to the chair.",
+  "simulation_seconds": 24.51499945204705,
+  "wall_seconds": 147.47069230116904,
+  "distance_m": 6.148479527448876,
+  "final_position": [
+    -5.857477188110352,
+    29.291187286376953,
+    0.2708061635494232
+  ],
+  "stop_dwell": 1.0999999999999999,
+  "independent_goal_region": false,
+  "independent_object_evaluation": {
+    "passed": true,
+    "targets": [
+      {
+        "prim": "/World/Office/SM_Armchair3_234",
+        "footprint_distance_m": 0.4916109224596781,
+        "grounding_error_m": 0.0,
+        "visible": true,
+        "passed": true
+      },
+      {
+        "prim": "/World/Office/SM_Armchair4_237",
+        "footprint_distance_m": 2.774370611026761,
+        "grounding_error_m": 1.797354960181199,
+        "visible": false,
+        "passed": false
+      }
+    ],
+    "predicted_world_xyz": [
+      -5.73792313342743,
+      30.268202937222515,
+      0.4386199141587385
+    ]
+  },
+  "evaluation_definition": "sysnav-office-object-v1",
+  "contact_quality_passed": true,
+  "localization_evaluation": {
+    "alignment": "first pose only; evaluator private",
+    "frames": 123,
+    "translation_rmse_m": 0.0002923201839150704,
+    "maximum_translation_error_m": 0.0006537654127879828,
+    "final_translation_error_m": 0.00039330842586204163,
+    "maximum_rotation_error_deg": 0.011394915568392438,
+    "processing_p95_ms": 71.89443903043866
+  },
+  "physical_hardware_ready": false,
+  "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
+  "vlm_calls": 79,
+  "api_status": {
+    "ok": 79
+  },
+  "vlm_purposes": {
+    "process_instruction": 1,
+    "process_room_type_query": 14,
+    "process_object_type_query": 37,
+    "process_target_object_query": 25,
+    "process_room_early_stop_1_query": 2
+  },
+  "calls_with_images": 78,
+  "native_counts": {
+    "waypoints": 23,
+    "paths": 113,
+    "cmd_vel": 5971,
+    "candidate_sets": 0,
+    "mission_paths": 0,
+    "target_object_instruction": 2,
+    "camera": 23,
+    "detection_result": 23,
+    "room_nodes_list": 22,
+    "room_type_query": 14,
+    "viewpoint_rep_header": 1,
+    "room_navigation_query": 2,
+    "sysnav/status": 22,
+    "room_type_answer": 14,
+    "object_nodes_list": 36,
+    "object_type_query": 37,
+    "object_type_answer": 37,
+    "target_object_query": 25,
+    "target_object_answer": 25
+  },
+  "rooms": 2,
+  "objects": 4,
+  "isolation": {
+    "oracle_visible": false,
+    "scene_visible": false,
+    "stack": "native SysNav",
+    "instruction": "Find a black chair with a padded seat, padded backrest and armrests in the reception area. Stop close to the chair."
+  },
+  "api_latency_s": {
+    "median": 0.8867863989435136,
+    "p95": 1.2938553913496431
+  },
+  "tokens": {
+    "prompt_tokens": 50354,
+    "completion_tokens": 3015,
+    "total_tokens": 53369
+  }
+}
