@@ -130,6 +130,7 @@ def main():
     ap.add_argument("--geometry-only", action="store_true")
     ap.add_argument("--task", choices=list(TASKS), default="meeting")
     ap.add_argument('--sam-socket',type=Path)
+    ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],default='pixel_cross')
     args = ap.parse_args()
     task = TASKS[args.task]
     args.output.mkdir(parents=True, exist_ok=True)
@@ -240,7 +241,7 @@ def main():
                 images, view_ids = annotated_views(obs, candidates)
                 prompt += "\nFor inspect, also return selected_view (front|left|rear|right): the view containing the opening or feature you want to approach. candidate_id MUST come from that same view's list. For example, investigating a feature in the front image requires a front-image candidate, not a marker from another camera. Markers indicate reachable positions, which can sometimes be occluded; TARE retains responsibility for the path.\nCandidate IDs projected in each view: " + json.dumps(view_ids)
                 captured = {"task": args.task, "time": obs["time"], "position": obs["position"], "yaw": obs["yaw"], "candidate_revision": snapshot["revision"], "candidates": candidates, "candidate_view_ids": view_ids,
-                            'inspection_reached_time':inspection.reached_at}
+                            'inspection_reached_time':inspection.reached_at,'surface_geometry':args.surface_geometry}
                 pending = executor.submit(visual_decision, api, prompt, images, {"simulation_time": obs["time"], **captured}, obs["views"],segmenter)
                 inspection.captured()
             if api and at_inspection:

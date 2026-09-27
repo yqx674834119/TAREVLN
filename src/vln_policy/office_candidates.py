@@ -4,6 +4,7 @@ import io
 import json
 import zlib
 from .office_grounding import ground_visual_anchor
+from .office_planes import metric_surface_candidates,candidate_from_support
 
 
 def observed_surface_geometry(view,robot_position):
@@ -77,7 +78,13 @@ def refine_surface_candidates(segmenter,views,robot_position,candidates):
             mask=decode_mask(encoded,view['image_size'])
             # SAM may cover a whole chair/table. Keep only the measured height
             # slice of the seed surface; legs and adjacent lower seats are out.
-            support=(mask & (horizontal>0) & (np.abs(points[:,:,2]-candidate['anchor_xyz'][2])<.04)).astype(np.uint8)
+            metric=candidate.get('geometry_method')=='metric_plane'
+            # Refinement may remove geometry, never grow the measured plane
+            # into a table's vertical apron or another height-near object.
+            if metric:
+                support=(mask & decode_mask(candidate['support']['mask_bits'],view['image_size'])).astype(np.uint8)
+            else:
+                support=(mask & (horizontal>0) & (np.abs(points[:,:,2]-candidate['anchor_xyz'][2])<.04)).astype(np.uint8)
             count,labels,stats,_=cv2.connectedComponentsWithStats(support,connectivity=8)
             x0,y0,x1,y1=candidate['bbox_xyxy']
             overlap=np.bincount(labels[y0:y1,x0:x1].ravel(),minlength=count);overlap[0]=0
@@ -85,6 +92,13 @@ def refine_surface_candidates(segmenter,views,robot_position,candidates):
             label=int(overlap.argmax())
             if stats[label,cv2.CC_STAT_AREA]<60:continue
             component=(labels==label).astype(np.uint8)
+            if metric:
+                refined=candidate_from_support(view,robot_position,points,component)
+                if refined is None:continue
+                accepted.append({**refined,'id':candidate['id'],
+                    'sam':{**refined['support'],'source':'sam2','predicted_mask_iou':float(score),
+                           'mask_pixels':int(mask.sum()),'support_pixels':int(component.sum())}})
+                continue
             clearance=cv2.distanceTransform(component,cv2.DIST_L2,5)
             v,u=np.unravel_index(clearance.argmax(),clearance.shape)
             if clearance[v,u]<3:continue
@@ -129,7 +143,7 @@ def annotated_surface_views(views,candidates):
 
 def select_surface_anchor(api,verification_prompt,views,robot_position,context,segmenter=None):
     if not views:return None
-    candidates=horizontal_surface_candidates(views,robot_position)
+    candidates=(metric_surface_candidates if context.get('surface_geometry')=='metric_plane' else horizontal_surface_candidates)(views,robot_position)
     if segmenter and candidates:
         candidates=refine_surface_candidates(segmenter,views,robot_position,candidates)
     if not candidates:return None
@@ -146,7 +160,8 @@ def select_surface_anchor(api,verification_prompt,views,robot_position,context,s
     # Ignore any invented image/world coordinates in the language response.
     check['anchor_view']=selected['view'] if selected else None
     check['anchor_pixel_xy']=selected['pixel_xy'] if selected else None
+    check['_measured_grounding']=selected['grounding'] if selected else None
     check['surface_proposal']={'candidates':len(candidates),'selected_id':selected['id'] if selected else None,
                                'valid_selection':selected is not None,'sam_refined':bool(segmenter),
-                               'selected_support':selected.get('sam') if selected else None}
+                               'selected_support':(selected.get('sam') or selected.get('support')) if selected else None}
     return check

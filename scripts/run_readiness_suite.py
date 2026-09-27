@@ -15,6 +15,7 @@ ap.add_argument('--ground-torsion-radius',type=float)
 ap.add_argument('--ground-contact-offset',type=float)
 ap.add_argument('--gait-gpu',type=int,default=0)
 ap.add_argument('--sam',action='store_true')
+ap.add_argument('--surface-geometry',choices=('pixel_cross','metric_plane'),default='pixel_cross')
 ap.add_argument('--api-proxy')
 ap.add_argument('--odometry',choices=('ideal','gicp'),default='ideal')
 ap.add_argument('--lidar-profile',choices=('legacy11','uniform64'),default='legacy11')
@@ -36,7 +37,7 @@ frozen=manifest()
 (args.out/'freeze.json').write_text(json.dumps({'files':frozen,'config':cfg,'kind':args.kind,
     'ground_torsion_radius':args.ground_torsion_radius,'ground_contact_offset':args.ground_contact_offset,
     'odometry':args.odometry,'lidar_profile':args.lidar_profile,'sam':args.sam,'api_proxy':args.api_proxy,
-    'gait_gpu':args.gait_gpu},indent=2))
+    'gait_gpu':args.gait_gpu,'surface_geometry':args.surface_geometry},indent=2))
 results=[]
 if args.kind=='gait':
     cases=list(itertools.product(cfg['initial_yaws_rad'],cfg['threshold_heights_m']))
@@ -58,7 +59,7 @@ for i,case in enumerate(cases):
         run=root/'data/sim/office/runs'/name
         command=['sim/run_office.py','--name',name,'--task',task,'--spawn',*map(str,spawn),
                  '--yaw',str(yaw),'--max-seconds',str(cfg['max_seconds']),
-                 '--odometry',args.odometry,'--lidar-profile',args.lidar_profile]
+                 '--odometry',args.odometry,'--lidar-profile',args.lidar_profile,'--surface-geometry',args.surface_geometry]
         if args.sam:command+=['--sam']
         if args.api_proxy:command+=['--api-proxy',args.api_proxy]
     command=['bash','scripts/with_gpu_compat.sh',str(root.parent/'envs/isaac51/bin/python'),'-u',*command,

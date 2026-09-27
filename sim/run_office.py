@@ -28,6 +28,7 @@ ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="l
 ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT relay, e.g. http://127.0.0.1:18119")
 ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
 ap.add_argument('--sam-gpu',type=int,default=2)
+ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],default='pixel_cross')
 args = ap.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
@@ -39,7 +40,7 @@ report = {"status": "starting", "success": False, "policy": "SysNav native TARE 
           "localization_control_ready": False, "physical_hardware_ready": False,
           "lidar_profile": args.lidar_profile,
           "api_proxy": args.api_proxy,
-          "sam_enabled":args.sam,"sam_gpu":args.sam_gpu if args.sam else None,
+          "surface_geometry":args.surface_geometry,"sam_enabled":args.sam,"sam_gpu":args.sam_gpu if args.sam else None,
           "mode": "preview" if args.preview else "geometry_only" if args.geometry_only else "vlm_task",
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
           "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
@@ -51,7 +52,7 @@ for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sa
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch", "scripts/odometry_worker.py",
                  "scripts/sam_worker.py","config/sam2-provenance.json",*[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_perception').glob('*.py')],
-                 "src/vln_policy/inspection_handoff.py",
+                 "src/vln_policy/inspection_handoff.py", "src/vln_policy/office_planes.py",
                  *[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_localization').glob('*.py')]]:
     file = ROOT / relative
     if file.exists():
@@ -148,7 +149,7 @@ try:
         sam=SamProcess(ROOT,out/'sam',args.sam_gpu)
         report['sam_isolation']=sam.isolation
     if not args.preview:
-        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task, api_proxy=args.api_proxy,sam_ipc=sam.ipc if sam else None)
+        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task, api_proxy=args.api_proxy,sam_ipc=sam.ipc if sam else None,surface_geometry=args.surface_geometry)
     if args.odometry == 'gicp':
         odometry = OdometryProcess(ROOT, out/'odometry', out)
         odom_trace = (out/'odometry/poses.jsonl').open('w')

@@ -11,6 +11,7 @@ import atexit
 import numpy as np
 from vln_policy.office_candidates import horizontal_surface_candidates,annotated_surface_views,select_surface_anchor
 from vln_policy.office_grounding import ground_visual_anchor
+from vln_policy.office_planes import metric_surface_candidates
 from vln_policy.office_surface import verify_table_surface
 from vln_policy.office_tasks import TASKS
 from vln_core.vision_api import VisionAPI
@@ -20,6 +21,7 @@ ap.add_argument('--run',type=Path,required=True)
 ap.add_argument('--out',type=Path,required=True)
 ap.add_argument('--steps',type=int,nargs='+',required=True)
 ap.add_argument('--api',action='store_true')
+ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],default='pixel_cross')
 ap.add_argument('--sam',action='store_true',help='Require the same isolated SAM refinement as the live worker')
 ap.add_argument('--probe-review',type=Path,help='Assistant-reviewed fixed surface IDs, evaluated without sending labels to the model')
 args=ap.parse_args()
@@ -32,7 +34,7 @@ if args.sam:
     sam=SamProcess(Path(__file__).resolve().parents[1],args.out/'sam')
     atexit.register(sam.close)
     segmenter=SamClient(sam.ipc/'sam.sock')
-files=[Path(__file__),*[Path(inspect.getfile(f)) for f in (horizontal_surface_candidates,ground_visual_anchor,verify_table_surface,VisionAPI)]]
+files=[Path(__file__),*[Path(inspect.getfile(f)) for f in (horizontal_surface_candidates,metric_surface_candidates,ground_visual_anchor,verify_table_surface,VisionAPI)]]
 for p in files:shutil.copyfile(p,source/p.name)
 (source/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in files},indent=2))
 probes=json.loads(args.probe_review.read_text()) if args.probe_review else []
@@ -60,8 +62,8 @@ for step in args.steps:
                       'jpeg':base64.b64encode(rgb_file.read_bytes()).decode(),
                       'depth_mm':base64.b64encode(zlib.compress(mm.tobytes())).decode()})
         files.extend([depth_file,rgb_file])
-    context={'task':report['task'],'time':t,'position':pos.tolist()}
-    proposals=horizontal_surface_candidates(views,pos)
+    context={'task':report['task'],'time':t,'position':pos.tolist(),'surface_geometry':args.surface_geometry}
+    proposals=(metric_surface_candidates if args.surface_geometry=='metric_plane' else horizontal_surface_candidates)(views,pos)
     if segmenter:
         from vln_policy.office_candidates import refine_surface_candidates
         proposals=refine_surface_candidates(segmenter,views,pos,proposals)
@@ -73,7 +75,8 @@ for step in args.steps:
         item['probes']=[]
         for spec in [p for p in probes if p['step']==step]:
             candidate=next(c for c in proposals if c['id']==spec['surface_id'])
-            check={'anchor_view':candidate['view'],'anchor_pixel_xy':candidate['pixel_xy']}
+            check={'anchor_view':candidate['view'],'anchor_pixel_xy':candidate['pixel_xy'],
+                   'surface_proposal':{'sam_refined':bool(segmenter),'selected_support':candidate.get('sam') or candidate.get('support')}}
             surface=verify_table_surface(api,check,candidate['grounding'],views,{**context,'probe_id':candidate['id']})
             item['probes'].append({'review':spec,'surface':surface,'matches_review':surface['valid']==spec['expected_valid']})
     elif api:
@@ -83,7 +86,7 @@ for step in args.steps:
         check=select_surface_anchor(api,prompt,views,pos,context,segmenter)
         item['verification']=check
         if check:
-            grounding=ground_visual_anchor(check,views,pos)
+            grounding=check.pop('_measured_grounding',None) or ground_visual_anchor(check,views,pos)
             item['grounding']=grounding
             if grounding['valid']:
                 item['surface']=verify_table_surface(api,check,grounding,views,context)

@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 
 class OfficeProcess:
-    def __init__(self, project: Path, output: Path, stderr, geometry_only=False, task="meeting", api_proxy=None,sam_ipc=None):
+    def __init__(self, project: Path, output: Path, stderr, geometry_only=False, task="meeting", api_proxy=None,sam_ipc=None,surface_geometry="pixel_cross"):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav"
@@ -47,7 +47,7 @@ class OfficeProcess:
         for name, value in env.items():
             args += ["--setenv", name, value]
         args += ["--chdir", "/tmp", str(ros / "bin/python"), "-u", "/worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
-        args += ["--task", task]
+        args += ["--task", task,"--surface-geometry",surface_geometry]
         if sam_ipc:args += ['--sam-socket','/sam-ipc/sam.sock']
         if geometry_only:
             args.append("--geometry-only")

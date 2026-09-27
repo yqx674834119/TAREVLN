@@ -69,7 +69,9 @@ def visual_decision(api, prompt, images, context, views=(),segmenter=None):
                 proposed=None
             # Do not repeat an unchanged identity query when no proposal exists.
             if proposed is not None or (not grounding['valid'] and grounding['reason']!='observed furniture too far'):
-                grounding=ground_visual_anchor(check,views,context.get('position',[]))
+                # This field is filled only from the selected, measured proposal;
+                # select_surface_anchor overwrites any model-supplied value.
+                grounding=(check.pop('_measured_grounding',None) if proposed is not None else None) or ground_visual_anchor(check,views,context.get('position',[]))
                 features=all(check[k] for k in task['features'])
                 surface={'valid':False,'reason':'geometry or task features rejected'}
                 if features and check['inside_area'] and grounding['valid']:
