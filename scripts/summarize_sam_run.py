@@ -7,9 +7,11 @@ from pathlib import Path
 import statistics
 from PIL import Image,ImageDraw
 from vln_perception.sam2_masks import decode_mask
+from vln_policy.office_tasks import TASKS
 
 ap=argparse.ArgumentParser();ap.add_argument('run',type=Path);args=ap.parse_args()
 out=args.run/'review';out.mkdir(exist_ok=True)
+task=TASKS[json.loads((args.run/'report.json').read_text())['task']]
 requests=[json.loads(p.read_text()) for p in sorted((args.run/'sam').glob('request-*.json'))]
 images={r['result']['image_sha256']:r['request']['jpeg'] for r in requests}
 panels=[];selections=[]
@@ -28,8 +30,10 @@ for file in sorted((args.run/'agent/vlm').glob('call-*/request.json')):
     draw=ImageDraw.Draw(shown)
     u,v=candidate['pixel_xy'];draw.ellipse((u-5,v-5,u+5,v+5),fill='red')
     panel=Image.new('RGB',(1280,520),'#0f172a');panel.paste(original,(0,40));panel.paste(shown,(640,40))
-    text=f"{file.parent.name} | t={context.get('simulation_time',context.get('time')):.1f}s | {candidate['view']} {candidate['id']} | measured support {support['support_pixels']} pixels"
-    ImageDraw.Draw(panel).text((12,12),text,fill='white')
+    features_pass=all(result.get(k) is True for k in task['features']) and result.get('inside_area') is True and result.get('confidence',0)>=.8
+    label='Task features pass; identity checked separately' if features_pass else 'REJECTED: task features / confidence incomplete'
+    text=f"{file.parent.name} | t={context.get('simulation_time',context.get('time')):.1f}s | {candidate['view']} {candidate['id']} | {label}"
+    ImageDraw.Draw(panel).text((12,12),text,fill='#86efac' if features_pass else '#fca5a5')
     panels.append(panel)
     selections.append({'call':file.parent.name,'simulation_time':context.get('simulation_time',context.get('time')),
                        'id':candidate['id'],'view':candidate['view'],'anchor_xyz':candidate['anchor_xyz'],
