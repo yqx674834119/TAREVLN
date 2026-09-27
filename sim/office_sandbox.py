@@ -8,7 +8,7 @@ import subprocess
 
 
 class OfficeProcess:
-    def __init__(self, project: Path, output: Path, stderr, geometry_only=False):
+    def __init__(self, project: Path, output: Path, stderr, geometry_only=False, task="meeting"):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav"
@@ -39,6 +39,7 @@ class OfficeProcess:
         for name, value in env.items():
             args += ["--setenv", name, value]
         args += ["--chdir", "/tmp", str(ros / "bin/python"), "-u", "/worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
+        args += ["--task", task]
         if geometry_only:
             args.append("--geometry-only")
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,

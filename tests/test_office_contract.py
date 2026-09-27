@@ -8,6 +8,7 @@ class OfficeContractTest(unittest.TestCase):
         candidates = [{"id": 0, "xyz": [1.,0.,.3]}, {"id": 1, "xyz": [4.,0.,.3]}]
         self.assertEqual(unvisited_candidates(candidates, [[0.,0.,.3],[1.,0.,.3]]), [candidates[1]])
         self.assertEqual(unvisited_candidates(candidates, []), candidates)
+        self.assertEqual(unvisited_candidates(candidates, [[0.,0.,.3]]), candidates)
 
     def setUp(self):
         self.candidates = [{"id": 3, "xyz": [1., 2., .3]}]
@@ -24,6 +25,12 @@ class OfficeContractTest(unittest.TestCase):
         for changes in ({"inside_target_area": "false"}, {"confidence": math.nan}, {"confidence": 1.1}, {"action": "cmd_vel"}):
             with self.assertRaises(ValueError):
                 validate_decision(dict(self.decision, **changes), self.candidates)
+
+    def test_candidate_must_belong_to_the_selected_camera_view(self):
+        views = {"front": [3], "left": [8]}
+        self.assertEqual(validate_decision(dict(self.decision, selected_view="front"), self.candidates, views), self.candidates[0])
+        with self.assertRaises(ValueError):
+            validate_decision(dict(self.decision, selected_view="left"), self.candidates, views)
 
     def test_duplicate_stale_and_distant_views_cannot_complete(self):
         a = {"time": 5., "position": [0.,0.,.3]}

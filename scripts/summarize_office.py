@@ -2,6 +2,11 @@
 import argparse
 import json
 import math
+import subprocess
+import sys
+import shutil
+import textwrap
+from collections import Counter
 from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
@@ -12,6 +17,7 @@ import matplotlib.pyplot as plt
 ap=argparse.ArgumentParser()
 ap.add_argument('run',type=Path)
 ap.add_argument('--oracle',type=Path)
+ap.add_argument('--video',action='store_true')
 args=ap.parse_args()
 run=args.run
 out=run/'review';out.mkdir(exist_ok=True)
@@ -41,8 +47,10 @@ for i,call in enumerate(calls,1):
 ax.set_aspect('equal');ax.set_xlabel('World x (m)');ax.set_ylabel('World y (m)');ax.grid(alpha=.2)
 ax.set_title(f"{run.name}: {report['status']}\nVLM call numbers; LiDAR points; evaluator goal areas")
 ax.legend(loc='best');fig.tight_layout();fig.savefig(out/'trajectory.png',dpi=150);plt.close(fig)
-summary={k:report.get(k) for k in ['status','success','simulation_seconds','wall_seconds','distance_m','final_position','assets_complete','contact_quality_passed']}
+summary={k:report.get(k) for k in ['status','success','task','start_position','simulation_seconds','wall_seconds','distance_m','final_position','assets_complete','contact_quality_passed']}
 summary['vlm_calls']=len(calls)
+summary['vlm_call_purposes']=dict(Counter(c.get('context',{}).get('purpose','unspecified') for c in calls))
+summary['network_attempts']=sum(len(c.get('attempts',[])) for c in calls)
 summary['vlm_latency_seconds']=[round(c.get('latency_seconds',0),3) for c in calls]
 summary['vlm_decisions']=[{'call':i,'simulation_time':c.get('context',{}).get('simulation_time'),'position':c.get('context',{}).get('position'),'result':c.get('result'),'status':c.get('status')} for i,c in enumerate(calls,1)]
 summary['native_counts']=report.get('final_action',{}).get('counts')
@@ -58,4 +66,26 @@ if frames:
    img=Image.open(frame.with_name(frame.name.replace('_0.jpg',f'_{view}.jpg'))).convert('RGB')
    collage.paste(img,(640*col,row*510+30))
  collage.save(out/'keyframes.jpg',quality=90)
+ if args.video:
+  ffmpeg=shutil.which('ffmpeg') or str(Path(sys.executable).parent/'ffmpeg')
+  encoder=subprocess.Popen([ffmpeg,'-y','-loglevel','error','-f','rawvideo','-pixel_format','rgb24',
+      '-video_size','1280x560','-framerate','2','-i','-','-an','-c:v','libx264','-crf','23',
+      '-pix_fmt','yuv420p',str(out/'autonomous-review.mp4')],stdin=subprocess.PIPE)
+  try:
+   for frame in frames:
+    step=int(frame.stem.split('_')[1]);t=step*.005
+    canvas=Image.new('RGB',(1280,560),'#0f172a');draw=ImageDraw.Draw(canvas)
+    canvas.paste(Image.open(frame).convert('RGB'),(0,40))
+    chase=run/f'chase_{step:07d}.jpg'
+    second=chase if chase.exists() else frame.with_name(frame.name.replace('_0.jpg','_1.jpg'))
+    canvas.paste(Image.open(second).convert('RGB'),(640,40))
+    draw.text((12,12),f'{run.name} | simulation {t:.1f} s | 4x simulation playback',fill='white')
+    nearest=min(rows,key=lambda r:abs(r['time']-t))
+    action=nearest.get('action',{});decision=action.get('last_decision') or {}
+    caption=f"VLM calls: {action.get('vlm_calls',0)} | {action.get('reason','initializing')} | {decision.get('action','')} {decision.get('reason','')}"
+    draw.text((12,524),'\n'.join(textwrap.wrap(caption,width=170)[:2]),fill='white')
+    encoder.stdin.write(canvas.tobytes())
+  finally:
+   encoder.stdin.close()
+   if encoder.wait()!=0:raise RuntimeError('Video encoding failed')
 print(json.dumps(summary,ensure_ascii=False))

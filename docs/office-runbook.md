@@ -4,13 +4,17 @@
 
 ## 任务和信息边界
 
-机器人从 NVIDIA Office 的未知位置开始探索，寻找有共享会议桌、多把椅子及大展示屏的会议区域。个人工位上的 PC 显示器不算目标。机器人需要进入空闲地面区域，从两个不同位置观察确认，并静止至少一秒。
+机器人在 NVIDIA Office 中接受单场景语言任务，默认 `--task meeting`：寻找有共享会议桌、多把椅子及大壁挂展示屏的会议区域。基础任务 `--task lounge`：寻找有成组扶手椅、小桌和壁挂屏的休息区。两个任务分别统计，不用休息区成功代替会议室成功。个人工位上的 PC 显示器、顶灯和窗户不算展示屏。机器人需要进入空闲地面区域，从两个不同位置观察确认，并静止至少一秒。
 
-VLM 输入是四个方向的当前 RGB 图像、TARE 给出的可达观察候选及最近六次决策。输出仅允许 `explore`、`inspect(candidate_id)`、`confirm`。候选位置来自当前点云形成的 TARE 图；模型不能给任意坐标或速度。至少两个近期正例观察位置相隔 0.6–4 米才能请求停止；评测器另外检查私有目标区域。
+VLM 输入是四个方向的当前 RGB 图像、TARE 给出的可达观察候选及最近十条动作/执行记录。输出仅允许 `explore`、`inspect(candidate_id)`、`confirm`。候选位置来自当前点云形成的 TARE 图；模型不能给任意坐标或速度。至少两个近期正例观察位置相隔 0.6–4 米才能请求停止；评测器另外检查私有目标区域。
 
 API 推理异步执行，等待期间给步态控制器零速度，物理和传感器继续运行。返回结果若已超过 60 秒或机器人相对拍摄位置漂移超过 0.35 米，则丢弃；原生 TARE 再检查候选的当前可达性。双视点确认的证据窗口为 60 秒，计算的是拍摄时间和拍摄位置。
 
 几何子目标保持到距目标小于 0.6 米、25 秒期限到达，或连续 10 秒没有至少 0.1 米的距离进展；这些反馈进入下一次 VLM 决策。`mission_paths` 计数记录 TARE 为语义子目标实际发布的有效路径。
+
+搜索时保留实际行走位置，过滤距已到访位置小于 0.6 米的候选；确认阶段允许回访。候选的图像投影同时形成 `selected_view → candidate_id` 对应表，不匹配的选择会要求模型重选一次；第二次仍无效则记录拒绝原因，回退到原生几何探索，不将非法编号用于运动。历史提示只保存动作、位置和执行结果，不把旧视觉描述作为新画面的事实。导航模型报告目标线索且置信度至少 0.6 后，调用不含先前结论的独立 VLM 图像复核，分别判断任务设施、当前是否在目标旁以及置信度；只有复核满足全部设施、在区域内且置信度至少 0.8 才产生一个到达正例。导航选点与到达判断分离，最终空间真值始终只在评测器中使用。
+
+默认关闭模型推理模式，单次网络尝试超时为 20 秒，临时网络错误和部分服务端错误最多尝试三次，认证失败不重试。等待期间保持零速度；所有尝试写入证据日志，失败不会返回模拟决策。API 逻辑调用上限为每轮 60 次，重试次数单独记录。
 
 真实执行链为：Isaac 点云和位姿 → SysNav 原生 terrainAnalysis / TARE → `/way_point` → localPlanner → `/path` → pathFollower → `/cmd_vel` → Go2 关节力矩策略。导航进程被放入独立的文件系统命名空间，看不到 USD、目标区域或模拟器进程的场景文件。网络用于 DeepSeek API 和 localhost ROS，ROS domain 为 93。
 
@@ -48,7 +52,7 @@ nohup env OMNI_KIT_ACCEPT_EULA=YES bash scripts/with_gpu_compat.sh \
 
 EULA 已由用户明确授权。仅使用 GPU 0；兼容库通过本项目脚本动态链接。`realRobot=false`，不连接机器狗或底盘串口。
 
-首次部署还需要私有 `data/sim/office/private/oracle.json`，其中定义合法起点及人工核对过的目标区域。该文件属于场景作者与评测器，不是策略输入；不要把它复制进 `config` 或语义提示词。
+首次部署还需要私有 `data/sim/office/private/oracle.json`（会议室）及 `oracle_lounge.json`（休息区），其中定义合法起点及人工核对过的目标区域。该文件属于场景作者与评测器，不是策略输入；不要把它复制进 `config` 或语义提示词。
 
 原生故障定位可使用 `scripts/build_sysnav_asan.sh`，并用 `scripts/replay_office_sensors.py` 回放保存的传感器。ASan 编译保持 Eigen 分配约定和 OR-Tools 9.8 所依赖的 Abseil 类布局一致；否则调试本身会产生 ABI 错误。回放只能验证对应输入的处理，不能当作自主任务成功。完成诊断后运行普通构建脚本恢复 Release。
 
@@ -63,3 +67,5 @@ EULA 已由用户明确授权。仅使用 GPU 0；兼容库通过本项目脚本
 传感器为理想 RGB-D 和虚拟多线扫描雷达，位姿为模拟器理想里程计。尚不代表真实 MID360 扫描、SLAM 漂移、实机传感器标定或 Go2 实机闭环。室内灯光和静态碰撞由场景构建器明确设置。
 
 参考：[SysNav](https://github.com/zwandering/SysNav)、[DeepSeek Vision](https://api-docs.deepseek.com/guides/vision/)、[Isaac 5.1 环境资产](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/assets/usd_assets_environments.html)。
+
+可在对应运行目录创建 `STOP` 文件结束仿真，程序会保留报告与接触记录；优先使用它而非 Kit 的 SIGINT。复核视频可用 ROS 环境运行 `scripts/summarize_office.py <run> --oracle <private-oracle> --video` 生成，第三人称画面只供复核，不进入策略。

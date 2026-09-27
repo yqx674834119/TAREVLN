@@ -11,7 +11,7 @@ import urllib.request
 
 
 class VisionAPI:
-    def __init__(self, output: Path, key_file: Path | None = None, max_calls=60):
+    def __init__(self, output: Path, key_file: Path | None = None, max_calls=60, thinking=False):
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
         key_file = key_file or Path.home() / "VLN/secrets/deepseek-api-key"
@@ -20,6 +20,7 @@ class VisionAPI:
         self._key = key_file.read_text().strip()
         self.model = "deepseek-flash"
         self.calls, self.max_calls = 0, max_calls
+        self.thinking = thinking
 
     def ask(self, prompt: str, images: list[bytes], context: dict | None = None):
         if self.calls >= self.max_calls:
@@ -34,18 +35,40 @@ class VisionAPI:
             hashes.append(hashlib.sha256(img).hexdigest())
             parts.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(img).decode()}})
         body = {"model": self.model, "messages": [{"role": "user", "content": parts}],
-                "thinking": {"type": "disabled"}, "response_format": {"type": "json_object"},
-                "max_tokens": 1000, "temperature": 0}
-        record = {"model": self.model, "prompt": prompt, "image_sha256": hashes, "context": context or {}, "started": time.time()}
+                "thinking": {"type": "enabled" if self.thinking else "disabled"}, "response_format": {"type": "json_object"},
+                "max_tokens": 8000 if self.thinking else 1000}
+        if self.thinking:
+            body["reasoning_effort"] = "low"
+        else:
+            body["temperature"] = 0
+        record = {"model": self.model, "thinking": self.thinking, "prompt": prompt, "image_sha256": hashes, "context": context or {}, "started": time.time()}
         # Store neither request headers nor image data URLs in the JSON log.
         (call_dir / "request.json").write_text(json.dumps(record, indent=2))
         request = urllib.request.Request("https://api.deepseek.com/chat/completions",
                                          data=json.dumps(body).encode(), method="POST",
                                          headers={"Authorization": "Bearer " + self._key, "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                payload = json.load(response)
-            content = payload["choices"][0]["message"]["content"]
+            record["attempts"] = []
+            for attempt in range(1, 4):
+                attempt_start = time.time()
+                try:
+                    with urllib.request.urlopen(request, timeout=40 if self.thinking else 20) as response:
+                        payload = json.load(response)
+                    record["attempts"].append({"attempt": attempt, "status": "ok", "latency_seconds": time.time()-attempt_start})
+                    break
+                except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+                    transient = not isinstance(error, urllib.error.HTTPError) or error.code in {408,429,500,502,503,504}
+                    record["attempts"].append({"attempt": attempt, "status": type(error).__name__, "latency_seconds": time.time()-attempt_start})
+                    (call_dir / "attempts.json").write_text(json.dumps(record["attempts"], indent=2))
+                    if not transient or attempt == 3:
+                        raise
+                    time.sleep(.5 * attempt)
+            choice = payload["choices"][0]
+            record.update(finish_reason=choice.get("finish_reason"), usage=payload.get("usage"),
+                          reasoning_effort=body.get("reasoning_effort"))
+            content = choice["message"]["content"]
+            if not content:
+                raise ValueError("VLM produced no final content; finish_reason=" + str(choice.get("finish_reason")))
             result = json.loads(content)
             if not isinstance(result, dict):
                 raise ValueError("VLM result must be a JSON object")

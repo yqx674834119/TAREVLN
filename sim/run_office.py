@@ -13,6 +13,7 @@ import traceback
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--name", required=True)
+ap.add_argument("--task", choices=["meeting", "lounge"], default="meeting")
 ap.add_argument("--max-seconds", type=float, default=600)
 ap.add_argument("--geometry-only", action="store_true")
 ap.add_argument("--preview", action="store_true")
@@ -27,13 +28,14 @@ out.mkdir(parents=True, exist_ok=False)
 report = {"status": "starting", "success": False, "policy": "SysNav native TARE + DeepSeek Flash vision task adapter",
           "robot": "articulated Go2 with NVIDIA flat-terrain checkpoint", "odometry": "ideal simulator pose",
           "mode": "preview" if args.preview else "geometry_only" if args.geometry_only else "vlm_task",
-          "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch"}
+          "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
+          "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
 (out / "report.json").write_text(json.dumps(report, indent=2))
 archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
-                 "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "config/office-ros.yaml",
+                 "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch"]:
     file = ROOT / relative
     if file.exists():
@@ -66,12 +68,17 @@ try:
     from go2_policy import Go2Policy
     from office_sandbox import OfficeProcess
 
-    oracle = json.loads((private / "oracle.json").read_text()) if (private / "oracle.json").exists() else {}
+    oracle_file = private / ("oracle.json" if args.task == "meeting" else "oracle_lounge.json")
+    oracle = json.loads(oracle_file.read_text()) if oracle_file.exists() else {}
     build = json.loads((private / "build.json").read_text())
     manifest = json.loads((VLN / "assets/usd-cache/office-download.json").read_text())
     if not args.preview and (not oracle or (not manifest["complete"] and not args.geometry_only)):
         raise RuntimeError("Task run requires complete assets and private evaluation definition")
     spawn = args.spawn or oracle["start_xyz"]
+    report["start_position"] = spawn
+    for filename in (oracle_file.name, "scene.usda", "build.json"):
+        if (private / filename).exists():
+            shutil.copyfile(private / filename, archive / filename)
     stage = omni.usd.get_context().get_stage()
     world = World(physics_dt=.005, rendering_dt=.1, stage_units_in_meters=1., device="cpu")
     controller = Go2Policy(stage, VLN / "assets/go2/go2_lab.usd", VLN / "assets/go2/checkpoint.pt", spawn)
@@ -113,7 +120,7 @@ try:
     subscription = get_physx_simulation_interface().subscribe_contact_report_events(contact_callback)
     stderr = open(out / "worker.log", "w")
     if not args.preview:
-        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only)
+        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task)
     trace = open(out / "trajectory.jsonl", "w")
     command = np.zeros(3)
     action = {}
@@ -123,6 +130,9 @@ try:
     # A virtual 360 x 11-channel scanning lidar, not a MID360 noise simulation.
     angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad([-40,-25,-15,-7,0,7,15,25,40,55,70])]
     for step in range(int(args.max_seconds/.005)):
+        if (out / "STOP").exists():
+            report["status"] = "operator_stopped"
+            break
         controller.step(command)
         world.step(render=False)
         if step % 20:
@@ -199,7 +209,9 @@ try:
             if dwell >= 1.:
                 region = oracle["goal_rectangle"]
                 regions = oracle.get("goal_rectangles", [region])
-                inside = any(r[0] <= pos[0] <= r[2] and r[1] <= pos[1] <= r[3] for r in regions)
+                floor_range = oracle.get("goal_z_range", [.05,.7])
+                inside = (floor_range[0] <= pos[2] <= floor_range[1] and
+                          any(r[0] <= pos[0] <= r[2] and r[1] <= pos[1] <= r[3] for r in regions))
                 report.update(status="completed" if inside else "false_positive_stop", success=bool(inside and not args.geometry_only), stop_dwell=dwell, independent_goal_region=bool(inside))
                 break
         if t > 2 and (pos[2] < -.05 or rot[2,2] < .55):
