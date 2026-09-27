@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/zwandering/SysNav.git",
+  "revision": "478727e5a559be22822d5d093b57431449336287",
+  "license": "BSD-3-Clause; dependency licenses retained in source",
+  "local_source": "/Users/mac/TARE_WheelTECH/vendor/sysnav",
+  "remote_source": "/home/yqx/VLN/deps/sysnav",
+  "extraction": "git archive of pinned revision, selected simulation packages; remote Git snapshot retains unmodified baseline for patch review",
+  "packages": ["tare_planner", "terrain_analysis", "terrain_analysis_ext", "local_planner", "serial"],
+  "patch": "patches/sysnav-isaac-mission.patch",
+  "semantic_mode": "VLM selects collision-checked TARE observation candidates; full SysNav room segmentation and object-mapping pipelines are not launched",
+  "robot_interface": "simulated cmd_vel to Go2 joint-effort policy, realRobot=false",
+  "ros": "RoboStack Humble with Python 3.12, isolated prefix, domain 93, localhost"
+}
