@@ -66,8 +66,8 @@
       "reason": "Calibrated simulated camera extrinsic"
     },
     "src/vlm_node/vlm_node/vlm_reasoning_node.py": {
-      "patch_sha256": "77b02bd31c25d4ea18faebf13be1a1370d026e86bafc0dc164fc8bf8070ed411",
-      "reason": "Provider transport, public decision summaries, float ROS overlay; free-string fields with detector identifier contract, no silent unknown coercion"
+      "patch_sha256": "474af257705d2309323ae6fdc50ae7bc4455234866e74973298c149453d4bc6f",
+      "reason": "Provider/identifier/message compatibility; optional early-stop dispatch default false preserves pinned disabled behavior, enabled only by an explicit experiment flag"
     }
   }
 }

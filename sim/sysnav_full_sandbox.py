@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 
 class FullSysNavProcess:
-    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None,instruction=None,api_budget=150):
+    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None,instruction=None,api_budget=150,enable_room_early_stop=False):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav-full"
@@ -78,6 +78,7 @@ class FullSysNavProcess:
             args += ["--setenv", name, value]
         args += ["--chdir", "/workspace", str(envroot / "bin/python"), "-u", "/sim/sysnav_full_worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
         args += ["--task", task,"--boundary","/boundary.ply"]
+        if enable_room_early_stop:args+=['--enable-room-early-stop']
         if instruction is not None:args+=['--instruction',instruction]
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,
                                         text=True, bufsize=1, env={"PATH": "/usr/bin:/bin"})

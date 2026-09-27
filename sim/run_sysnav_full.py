@@ -22,6 +22,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--name", required=True)
 ap.add_argument("--task", choices=["meeting", "lounge", "meeting_crossroom"], default="meeting")
 ap.add_argument('--api-budget',type=int,default=150)
+ap.add_argument('--enable-room-early-stop',action='store_true',help='Explicitly enable the branch hard-disabled in the pinned Go2 release')
 ap.add_argument('--mp3d-scene',help='Converted MP3D scene; evaluator loads the original R2R-CE instruction')
 ap.add_argument('--mp3d-episode',type=int)
 ap.add_argument("--max-seconds", type=float, default=600)
@@ -65,6 +66,7 @@ report = {"status": "starting", "success": False, "policy": "Full native SysNav 
           "lidar_profile": args.lidar_profile,
           "api_proxy": args.api_proxy,
           "api_budget": args.api_budget,
+          "room_early_stop_enabled":args.enable_room_early_stop,
           "surface_geometry":"native_sam2_lidar_fusion","sam_enabled":True,"sam_gpu":2,
           "mode": "sysnav_full",
           "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
@@ -223,7 +225,8 @@ try:
         report['sam_isolation']=sam.isolation
     if not args.preview:
         worker = FullSysNavProcess(ROOT, out / "agent", stderr, task=args.task, instruction=instruction,
-                                   api_proxy=args.api_proxy,api_budget=args.api_budget)
+                                   api_proxy=args.api_proxy,api_budget=args.api_budget,
+                                   enable_room_early_stop=args.enable_room_early_stop)
     if args.odometry == 'gicp':
         odometry = OdometryProcess(ROOT, out/'odometry', out,gicp_correspondence=args.gicp_correspondence)
         odom_trace = (out/'odometry/poses.jsonl').open('w')

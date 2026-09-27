@@ -29,7 +29,7 @@ REASONS={
     VLM+'deepseek_client.py':'Requested DeepSeek structured transport, budget and evidence log',
     VLM+'label_contract.py':'Normalize separator/case variants to actual detector identifiers; preserve unsupported names',
     VLM+'utils.py':'Calibrated simulated camera extrinsic',
-    VLM+'vlm_reasoning_node.py':'Provider transport, public decision summaries, float ROS overlay; free-string fields with detector identifier contract, no silent unknown coercion'
+    VLM+'vlm_reasoning_node.py':'Provider/identifier/message compatibility; optional early-stop dispatch default false preserves pinned disabled behavior, enabled only by an explicit experiment flag'
 }
 # These keys exist in upstream YAML but its nodes never declare/read them.
 # Record the limitation; every other configured parameter must be effective.
@@ -122,6 +122,9 @@ def main():
             unchanged.append(directory)
     failures=[]
     if args.run:
+        report=json.loads((args.run/'report.json').read_text())
+        if 'room_early_stop_enabled' in report:
+            config['vlm_node']['ros__parameters']['enable_room_early_stop']=report['room_early_stop_enabled']
         failures=check_runtime(json.loads((args.run/'agent/runtime-contract.json').read_text()),config)
         vocabulary=yaml.safe_load((args.source/'src/semantic_mapping/semantic_mapping/config/objects.yaml').read_text())
         labels={p for item in vocabulary['prompts'].values() for p in item['prompts']}
@@ -132,6 +135,7 @@ def main():
                 runtime_checked=bool(args.run),runtime_contract_passed=not failures if args.run else None,
                 runtime_failures=failures,claim='No unreviewed source or parameter drift; NOT a claim of bitwise algorithm or simulator equivalence')
     result['upstream_yaml_keys_not_effective']={k:sorted(v) for k,v in UPSTREAM_UNUSED.items()}
+    if args.run:result['intentional_early_stop_intervention']=report.get('room_early_stop_enabled',False)
     if args.out:args.out.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
     if failures:raise SystemExit(2)

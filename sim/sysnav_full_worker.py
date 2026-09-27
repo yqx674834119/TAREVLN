@@ -22,7 +22,7 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from tare_planner.msg import (RoomNodeList, ObjectNodeList, DetectionResult, RoomType,
     NavigationQuery, VlmAnswer, TargetObjectInstruction, TargetObject, ViewpointRep,
-    TargetObjectWithSpatial, ObjectType)
+    TargetObjectWithSpatial, ObjectType, RoomEarlyStop1)
 from sysnav_sensor_bridge import Bridge as SensorBridge
 from planning_recorder import PlanningRecorder
 from vln_core.sysnav_sensor_contract import SensorObservationAdapter
@@ -49,6 +49,7 @@ class Bridge(SensorBridge):
             ('/room_nodes_list',RoomNodeList), ('/object_nodes_list',ObjectNodeList),
             ('/detection_result',DetectionResult), ('/room_type_query',RoomType),
             ('/room_type_answer',RoomType), ('/room_navigation_query',NavigationQuery),
+            ('/room_early_stop_1',RoomEarlyStop1),
             ('/room_navigation_answer',VlmAnswer), ('/target_object_instruction',TargetObjectInstruction),
             ('/target_object_query',TargetObject), ('/target_object_answer',TargetObject),
             ('/target_object_spatial_query',TargetObjectWithSpatial),
@@ -93,6 +94,9 @@ class Bridge(SensorBridge):
             row.update(id=msg.room_id,label=msg.room_type,anchor=[msg.anchor_point.x,msg.anchor_point.y,msg.anchor_point.z],in_room=msg.in_room)
         elif isinstance(msg,NavigationQuery):
             row['query']=json.loads(msg.json)
+        elif isinstance(msg,RoomEarlyStop1):
+            row.update(nearby=msg.room_id_1,current=msg.room_id_2,enter_wrong_room=msg.enter_wrong_room,
+                       nearby_anchor=[msg.anchor_point_1.x,msg.anchor_point_1.y,msg.anchor_point_1.z])
         elif isinstance(msg,VlmAnswer):
             row.update(room_id=msg.room_id,answer_type=msg.answer_type,anchor=[msg.anchor_point.x,msg.anchor_point.y,msg.anchor_point.z])
         elif isinstance(msg,ViewpointRep):
@@ -124,6 +128,7 @@ def main():
     ap.add_argument('--output',type=Path,required=True)
     ap.add_argument('--task',choices=TASKS,default='lounge')
     ap.add_argument('--instruction',help='Public language instruction only; no goal coordinates')
+    ap.add_argument('--enable-room-early-stop',action='store_true')
     args=ap.parse_args()
     forbidden=Path('/home/yqx/VLN/cross-building-floor-nav/data/sim/office/private/oracle.json')
     if forbidden.exists():
@@ -158,6 +163,8 @@ def main():
                 cmd+=['-p','pathFolder:='+str(args.source/'src/base_autonomy/local_planner/paths')]
             if executable=='navigationBoundary':
                 cmd+=['-p','boundary_file_dir:='+str(args.boundary)]
+            if executable=='vlm_reasoning_node':
+                cmd+=['-p','enable_room_early_stop:='+str(args.enable_room_early_stop).lower()]
             children.append(subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT))
         sent=False
         runtime_saved=False

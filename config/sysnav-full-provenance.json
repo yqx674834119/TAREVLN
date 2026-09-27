@@ -1,7 +1,7 @@
 {
   "upstream": "https://github.com/zwandering/SysNav",
   "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
-  "port_revision": "3ca95df6ebd67ae89c47cd8294be2b7b777e7189",
+  "port_revision": "d155038a40598c8361a45b3c8b248814e408e32e",
   "patch": "patches/sysnav-full-isaac.patch",
   "runtime": "RoboStack Humble Python3.12 + isolated CUDA12.8 Python overlay",
   "provider": "DeepSeek",
@@ -26,5 +26,6 @@
   "ros_domain": 94,
   "parity_manifest": "config/sysnav-parity-manifest.json",
   "source_review": "config/sysnav-source-review.json",
-  "instruction_contract": "Native free-string fields with explicit detector identifiers and separator/case normalization; unsupported classes fail before motion."
+  "instruction_contract": "Native free-string fields with explicit detector identifiers and separator/case normalization; unsupported classes fail before motion.",
+  "early_stop": "Disabled by default to preserve upstream behavior; --enable-room-early-stop explicitly activates the previously hard-disabled dispatch."
 }

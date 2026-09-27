@@ -19,9 +19,14 @@ flowchart TD
   Bridge --> Terrain[原生 terrainAnalysis / terrainAnalysisExt]
   Bridge --> Detector[原生 YOLOE / BoT-SORT]
   Detector --> Mapper[原生 SAM2 与三维物体关联]
-  Sync --> Mapper
-  Sync --> Room[原生房间分割与连接图]
-  Room --> TARE[SysNav 改造版 TARE]
+  Bridge -->|注册点云与位姿| Mapper
+  Bridge -->|注册点云与位姿| Room[原生房间分割与连接图]
+  Sync -->|同步位姿| TARE[SysNav 改造版 TARE]
+  Bridge -->|注册点云与全景| TARE
+  TARE -->|占据与自由空间| Room
+  Room -->|房间和门及 mask| TARE
+  Boundary[原生 navigationBoundary] --> TARE
+  Boundary --> Local
   Mapper --> TARE
   Language[语言任务] --> VLM[原生八类查询与回答]
   TARE <--> VLM
@@ -98,6 +103,10 @@ flowchart TD
 
 - Isaac PhysX + 关节驱动 Go2 替代上游 Unity/运动学仿真和实际 WebRTC 载具接口。
   低速控制范围、关节站稳技能是当前机器人适配，不是 SysNav 原生运动能力。
+  已核对上游 `unitree_control.py`：默认 `wireless_controller` 把 ROS 分量映射为
+  摇杆通道，另有 `sport_cmd/Move` 模式；本平台直接将 m/s、rad/s 输入仿真步态策略。
+  未提供真实固件/摇杆响应标定，二者的执行动态不能声称相同。上游节点还显式退出
+  内置避障，不能臆测真实 Go2 会替上层自动纠正所有碰撞。
 - GICP 替代实机 ARISE/Livox 链。本轮扫描 5 Hz、全景 1 Hz，瞬时理想扫描、无 IMU
   融合；原版 Unity 传感器资产没有随固定仓库提供，不能声称传感器分布与速率已复刻。
   上游还有 wall timer 与 ROS timer 混用；Isaac 按观测步推进，实际调度不等于实机实时。
@@ -138,7 +147,7 @@ flowchart TD
 ## 5. 本轮验证与重跑
 
 - 编译：9 个 ROS 包完成；11 个原生运行节点及传感器桥启动。
-- 纯测试：109 项，103 通过、6 项按环境跳过；不计为导航成功。
+- 纯测试：112 项，106 通过、6 项按环境跳过；不计为导航成功。
 - 实际 mapper 投影与 Isaac 全景方向一致；独立全景测试 175 个方向点通过。
 - 真实 native 采样函数：10,000 次 ASan 小队列测试通过。
 - 源码审查、配置继承和 smoke-003 的运行参数/发布者/加载库检查最初通过；
@@ -162,6 +171,33 @@ flowchart TD
 75.3 秒产生了非空房间候选，75.7 秒获得 room 2 的普通选择回答，但原生回调只缓存
 该回答，机器人仍覆盖房间 1。这是后续策略审查的证据，**不能用有类别契约缺陷且
 中途停止的一轮来证明算法优劣**。001 的输入、源码和运行记录全部保留。
+
+### 对齐轮 002：确认上游提前切换分支被硬关闭
+
+`sysnav-parity-crossroom-002` 已通过启动图、实际参数、加载库和类别契约检查，
+目标为正确的 `tv_monitor`，物体类别核验分支也实际执行。约 13.2、14.2 秒，
+API 两次返回 `early_stop=true`，但没有对应的 `answer_type=1` 房间切换消息。
+
+核对固定上游提交和当前代码，`process_room_early_stop_1_query()` 均为：
+
+```python
+early_stop = answer.early_stop
+if False:  # pinned unitree_go2 release
+    # publish VlmAnswer(answer_type=1)
+```
+
+这不是迁移过程中删掉了 TARE，也不能据此认定 VLM 没有作出正确选择；
+**固定 Go2 上游的功能分支本身被关闭，真实回答没有进入执行链。**
+普通房间选择 `answer_type=0` 又只缓存候选，等覆盖完成才执行，因此大开放区域
+会拖延转移。002 在找到这个证据后主动停止，保留为功能诊断，不统计整任务成绩。
+
+为避免混淆原始复刻和修复，新增参数 `enable_room_early_stop`，默认 false 完全
+保留固定上游行为；只有显式 `--enable-room-early-stop` 才启用原来已有的发布分支。
+C++ TARE、目标打分、路径算法和任务条件均不改。测试直接执行原/新源码中的
+实际回调，在固定 API 回答下验证：上游丢弃 true；启用后发布房间 2 的 type 1；
+关闭时保持原行为；false 决策及误入房间恢复保持正确。
+
+启用后的运行须作为“修复上游关闭功能”的单独实验，而不是冒充未修改的官方基线。
 
 ## 6. 重跑后的分层判据
 
