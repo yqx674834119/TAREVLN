@@ -1,0 +1,14 @@
+{
+  "isaaclab": {
+    "url": "https://github.com/isaac-sim/IsaacLab.git",
+    "tag": "v2.3.0",
+    "commit": "3c6e67bb5c7ada942a6d1884ab69338f57596f77"
+  },
+  "baseline_checkpoint_sha256": "47ccb2046ec3064257997f879c62d64217b937713c30d827883b2c2f40c50439",
+  "torch_training_overlay": "envs/torch-cu128",
+  "torch": "2.7.0+cu128",
+  "torchvision": "0.22.0+cu128",
+  "torchaudio": "2.7.0+cu128",
+  "rsl_rl": "3.0.1",
+  "scope": "Minimal locomotion runtime. Optional Isaac Lab manipulation, transformers and XR dependencies are not installed. GPU overlay is per process; stock Isaac inference environment is retained."
+}

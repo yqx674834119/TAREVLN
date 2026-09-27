@@ -7,6 +7,44 @@ import sys
 import zlib
 
 
+def _surface_evidence(depth, width, height, u, v, intrinsics, rotation):
+    """Estimate normals at several pixel scales; require an observed level surface.
+
+    This rejects walls/legs, but is not an object classifier. RGB task evidence
+    and repeated observations are still required by the caller.
+    """
+    fx, fy, cx, cy = intrinsics
+
+    def point(x, y):
+        if not (0 <= x < width and 0 <= y < height):
+            return None
+        d = depth[y*width+x]/1000
+        if not 0 < d <= 40:
+            return None
+        local = [d, (cx-x)*d/fx, (cy-y)*d/fy]
+        return [sum(rotation[i][j]*local[j] for j in range(3)) for i in range(3)]
+
+    normals = []
+    centre = point(u, v)
+    residuals = []
+    for radius in (3, 5, 7, 9):
+        points = [point(u-radius, v), point(u+radius, v), point(u, v-radius), point(u, v+radius)]
+        if centre is None or any(p is None for p in points):
+            continue
+        a = [points[1][i]-points[0][i] for i in range(3)]
+        b = [points[3][i]-points[2][i] for i in range(3)]
+        n = [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
+        norm = math.sqrt(sum(x*x for x in n))
+        if norm < 1e-8:
+            continue
+        n = [x/norm for x in n]
+        normals.append(abs(n[2]))
+        residuals.append(max(abs(sum(n[i]*(p[i]-centre[i]) for i in range(3))) for p in points))
+    consistent = sum(z >= .85 and r <= .015 for z, r in zip(normals, residuals))
+    return {"valid": consistent >= 3, "scales": len(normals), "consistent_scales": consistent,
+            "normal_up_cosines": normals, "plane_residuals_m": residuals}
+
+
 def ground_visual_anchor(check, views, robot_position, max_distance=3.0):
     view = next((v for v in views if v['label'] == check.get('anchor_view')), None)
     pixel = check.get('anchor_pixel_xy')
@@ -35,8 +73,14 @@ def ground_visual_anchor(check, views, robot_position, max_distance=3.0):
     point = [view['position'][i] + sum(view['rotation'][i][j]*local[j] for j in range(3)) for i in range(3)]
     distance = math.dist(point[:2], robot_position[:2])
     on_furniture = .2 <= point[2] <= 1.2
-    valid = .2 <= distance <= max_distance and on_furniture
-    reason = 'anchor is on floor or above table height' if not on_furniture else ('near observed furniture' if valid else 'observed furniture too far')
+    surface = _surface_evidence(depth, width, height, u, v, view['intrinsics'], view['rotation'])
+    valid = .2 <= distance <= max_distance and on_furniture and surface['valid']
+    if not on_furniture:
+        reason = 'anchor is on floor or above table height'
+    elif not surface['valid']:
+        reason = 'anchor lacks a consistent horizontal tabletop surface'
+    else:
+        reason = 'near observed tabletop surface' if valid else 'observed furniture too far'
     return {'valid': valid, 'reason': reason,
             'horizontal_distance_m': distance, 'anchor_world_xyz': point,
-            'anchor_view': view['label'], 'anchor_pixel_xy': [u,v], 'depth_m': d}
+            'anchor_view': view['label'], 'anchor_pixel_xy': [u,v], 'depth_m': d, 'surface': surface}

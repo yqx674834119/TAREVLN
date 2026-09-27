@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "physics_dt_s": 0.005,
+  "policy_decimation": 4,
+  "initial_yaws_rad": [0.0, 1.5707963267948966, 3.141592653589793],
+  "threshold_heights_m": [0.0, 0.02],
+  "transition_exclusion_s": 1.0,
+  "maximum_steady_translation_rms_error_mps": 0.10,
+  "maximum_steady_yaw_rms_error_radps": 0.15,
+  "minimum_upright_cosine": 0.90,
+  "maximum_nonfoot_physical_contact_steps": 0,
+  "scope": "Engineering simulation controller gate. Does not qualify joint-level deployment on a physical robot. Threshold crossing must be witnessed, not inferred from spawning a barrier."
+}

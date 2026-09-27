@@ -1,0 +1,482 @@
+[
+  {
+    "name": "first_tabletop",
+    "expected_valid": true,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0009200_0.npz",
+    "source_sha256": "3c5a7bfc0bf683ce6910aa2ddf84d2c9494fbc22ae3ecb97318fe7ed16ba48fc",
+    "rgb_source": "rgb_0009200_0.jpg",
+    "original_pixel": [
+      420,
+      300
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -6.682971954345703,
+      31.09153175354004,
+      0.1962235569953918
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJytzD1uAQAAgNHhY+QKZqMjCEGQEg1SIX6j8b93khhcgAuYDT2BxewEHMFolZgbA/rJ298iuJB6WkqLamHtErCO2l7bamttro20qpbUYlpEC2lXrLN20g7aTvvVNtpKW2o/2oypNGPCmCEDvunTo0vnRfdDmxZNGtSp8UWVygPPDGU+KVGkwAd5cmT/+N+QIU2KJAnibxhuNpIxLw==",
+      "position": [
+        -6.682971954345703,
+        31.09153175354004,
+        0.6462235569953918
+      ],
+      "rotation": [
+        [
+          0.8447596576469332,
+          -0.5351458874103735,
+          0.0
+        ],
+        [
+          0.5351458874103735,
+          0.8447596576469332,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        -84.0,
+        -44.0
+      ]
+    }
+  },
+  {
+    "name": "first_wall_above_table",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0009200_0.npz",
+    "source_sha256": "3c5a7bfc0bf683ce6910aa2ddf84d2c9494fbc22ae3ecb97318fe7ed16ba48fc",
+    "rgb_source": "rgb_0009200_0.jpg",
+    "original_pixel": [
+      420,
+      245
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -6.682971954345703,
+      31.09153175354004,
+      0.1962235569953918
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJztzFEGgFAURVHR3SQSiUQknohEJCIRb/5ziUSixtD/WQNYnp2NlYWZiZGBno4WR0NNRUlBTkZKQkwEhAS89thtl512mNegQYMGDRo0aPg5fO9BUQY=",
+      "position": [
+        -6.682971954345703,
+        31.09153175354004,
+        0.6462235569953918
+      ],
+      "rotation": [
+        [
+          0.8447596576469332,
+          -0.5351458874103735,
+          0.0
+        ],
+        [
+          0.5351458874103735,
+          0.8447596576469332,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        -84.0,
+        11.0
+      ]
+    }
+  },
+  {
+    "name": "first_wall_below_table",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0009200_0.npz",
+    "source_sha256": "3c5a7bfc0bf683ce6910aa2ddf84d2c9494fbc22ae3ecb97318fe7ed16ba48fc",
+    "rgb_source": "rgb_0009200_0.jpg",
+    "original_pixel": [
+      420,
+      370
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -6.682971954345703,
+      31.09153175354004,
+      0.1962235569953918
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJztzD1LQnEYQHEMnyNhpeELWhRmaqT4lpQkRRD4yZybnZ2bm93dnR0lCZGijGtiV6wLgqH9nwaH+M3nVLnlhmsqlDnnjDxZ0pyQJE6MA/aIECKAnx28bAJuXEzkQywZyqs8S3UNDlfMmB8uuaBE0S6/mR5yZDglxTFHDvPDIftECRN0mB928bFldx6H+cHNht2NZeQwPVjybncvMpD+F83hSR6l+3/4s0OBGfNDgnm/P0T4yaqHbZZZdnCxusWHNwPzh57K9NBRa6u11JpqD2r3ag21utqdWk3tE/mvJLE=",
+      "position": [
+        -6.682971954345703,
+        31.09153175354004,
+        0.6462235569953918
+      ],
+      "rotation": [
+        [
+          0.8447596576469332,
+          -0.5351458874103735,
+          0.0
+        ],
+        [
+          0.5351458874103735,
+          0.8447596576469332,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        -84.0,
+        -114.0
+      ]
+    }
+  },
+  {
+    "name": "first_floor",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0009200_0.npz",
+    "source_sha256": "3c5a7bfc0bf683ce6910aa2ddf84d2c9494fbc22ae3ecb97318fe7ed16ba48fc",
+    "rgb_source": "rgb_0009200_0.jpg",
+    "original_pixel": [
+      190,
+      445
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -6.682971954345703,
+      31.09153175354004,
+      0.1962235569953918
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJylwpESgwAAANC76m6SRMlkNImSKOpbg0kQJMEkSIIkCZJJkiST7vqId+9VUYVKVrCcZezNXuzJUpawmD1YwK5Q/dnJDrazH9vYyhY2s4mNbGBf1rOOtaxhH1azG/IhXqA=",
+      "position": [
+        -6.682971954345703,
+        31.09153175354004,
+        0.6462235569953918
+      ],
+      "rotation": [
+        [
+          0.8447596576469332,
+          -0.5351458874103735,
+          0.0
+        ],
+        [
+          0.5351458874103735,
+          0.8447596576469332,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        146.0,
+        -189.0
+      ]
+    }
+  },
+  {
+    "name": "second_tabletop",
+    "expected_valid": true,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0019600_0.npz",
+    "source_sha256": "20f694845b61003cbd4f95ad88a083a6b0d063ed803ce26888222788ce3356ff",
+    "rgb_source": "rgb_0019600_0.jpg",
+    "original_pixel": [
+      265,
+      276
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -7.24332857131958,
+      32.2783317565918,
+      0.1999585330486297
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJztzDFLAnEYB+DgeH/3/uRAiSQUBCkQzOBQF4cIHFxcGvwugoNfqKkPodDS4JBwkMRBIogoCEZwRFLUGCe8i8OfZ39G+qhPOtFnjXSmsc51qWvd6rsm+qUefQbM8YwFlnjBCq8YsskWb9hmh13eceQGN/wMY/323zA4WN1s41s9mPXNbs0yZhGs7s2GZj2zmsE1QjQgqQAiQBanyOMcRZRQxiUqqP4Osfx5k4UsZSUb2cpOPiSRTzmBlzpMJZIXeXWDG45m2AOVdRXf",
+      "position": [
+        -7.24332857131958,
+        32.2783317565918,
+        0.6499585330486297
+      ],
+      "rotation": [
+        [
+          0.832795049067109,
+          0.5535814359688297,
+          0.0
+        ],
+        [
+          -0.5535814359688297,
+          0.832795049067109,
+          -0.0
+        ],
+        [
+          -0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        71.0,
+        -20.0
+      ]
+    }
+  },
+  {
+    "name": "second_accepted_wrong_wall",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0019600_0.npz",
+    "source_sha256": "20f694845b61003cbd4f95ad88a083a6b0d063ed803ce26888222788ce3356ff",
+    "rgb_source": "rgb_0019600_0.jpg",
+    "original_pixel": [
+      320,
+      240
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -7.24332857131958,
+      32.2783317565918,
+      0.1999585330486297
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJzby3mI8zjnGc6LnNc4b3M+5HzG+ZrzA+dXzt+cDFysXFxcAlyiXNJcClyqXNpcBlxmXNZcjlzuXD5cQVzhXLFcyVwZXHtHTRg1YdSEURNGTUAx4T9Q/iHnJc4jnFs5l3PO5Bw1gXQTmLg+cz4BqgNBSky4ynmMczvnSs5ZnD2cdZwFdDYBWzhQbsLQi03sJgAARUFN8A==",
+      "position": [
+        -7.24332857131958,
+        32.2783317565918,
+        0.6499585330486297
+      ],
+      "rotation": [
+        [
+          0.832795049067109,
+          0.5535814359688297,
+          0.0
+        ],
+        [
+          -0.5535814359688297,
+          0.832795049067109,
+          -0.0
+        ],
+        [
+          -0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        16.0,
+        16.0
+      ]
+    }
+  },
+  {
+    "name": "second_wall_below_table",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0019600_0.npz",
+    "source_sha256": "20f694845b61003cbd4f95ad88a083a6b0d063ed803ce26888222788ce3356ff",
+    "rgb_source": "rgb_0019600_0.jpg",
+    "original_pixel": [
+      285,
+      340
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -7.24332857131958,
+      32.2783317565918,
+      0.1999585330486297
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJylzLEKQWEAhuEsnLfOoHSKwWKQKBbDWSSLsFgoKYtk+ReDRUlkMUhZpKRcgnIPcgtGF+ACmGSk6PD17I9NEIcIUWLESZEhi0uOAkUqVKnRoEWbLoYefQaMmDJjzpIVG7bYfwzjF16HzkffhpIn70P6Z88hJLlbqovsJNvL1rKJzMjqsrwsKXNkPtk1oDrLjrKDbCdbyIYyI2vKyjJXlpCFZZbs5lc9APy7/zQ=",
+      "position": [
+        -7.24332857131958,
+        32.2783317565918,
+        0.6499585330486297
+      ],
+      "rotation": [
+        [
+          0.832795049067109,
+          0.5535814359688297,
+          0.0
+        ],
+        [
+          -0.5535814359688297,
+          0.832795049067109,
+          -0.0
+        ],
+        [
+          -0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        51.0,
+        -84.0
+      ]
+    }
+  },
+  {
+    "name": "second_floor",
+    "expected_valid": false,
+    "source": "data/sim/office/runs/office-lounge-005/depth_0019600_0.npz",
+    "source_sha256": "20f694845b61003cbd4f95ad88a083a6b0d063ed803ce26888222788ce3356ff",
+    "rgb_source": "rgb_0019600_0.jpg",
+    "original_pixel": [
+      300,
+      410
+    ],
+    "review": "assistant visual review of recorded RGB; development regression, not human-annotated benchmark",
+    "robot_position": [
+      -7.24332857131958,
+      32.2783317565918,
+      0.1999585330486297
+    ],
+    "check": {
+      "anchor_view": "front",
+      "anchor_pixel_xy": [
+        16,
+        16
+      ]
+    },
+    "view": {
+      "label": "front",
+      "image_size": [
+        33,
+        33
+      ],
+      "depth_mm": "eJylwpEWgwAAAECpFw6nYTid9hujKIqibJRFWRZlWZaFWTbMwmFWH3HvLg1T9GYvlrCYPdmDRewK1Mn+7GA7+7GNrWxhM5vYyAbWs461rGE1+7KKlaxgOcvYh93K71lX",
+      "position": [
+        -7.24332857131958,
+        32.2783317565918,
+        0.6499585330486297
+      ],
+      "rotation": [
+        [
+          0.832795049067109,
+          0.5535814359688297,
+          0.0
+        ],
+        [
+          -0.5535814359688297,
+          0.832795049067109,
+          -0.0
+        ],
+        [
+          -0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "intrinsics": [
+        320.0,
+        320.0,
+        36.0,
+        -154.0
+      ]
+    }
+  }
+]

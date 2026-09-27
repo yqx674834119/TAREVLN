@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 import traceback
 import zlib
+from contact_audit import accumulate_contact, contact_quality
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--name", required=True)
@@ -36,7 +37,7 @@ archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
-                 "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "config/office-ros.yaml",
+                 "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch"]:
     file = ROOT / relative
     if file.exists():
@@ -105,19 +106,19 @@ try:
     query = get_physx_scene_query_interface()
     k = camera.get_intrinsics_matrix()
     contacts = {}
+    contact_stream = open(out / "contacts.jsonl", "w")
     def contact_callback(headers, data):
         for header in headers:
             a, b = str(PhysicsSchemaTools.intToSdfPath(header.collider0)), str(PhysicsSchemaTools.intToSdfPath(header.collider1))
             robot, env = (a, b) if a.startswith("/World/Go2/") else (b, a)
             if not robot.startswith("/World/Go2/") or env.startswith("/World/Go2/"):
                 continue
-            # Retain raw collider pairs, including calf/floor contacts; never
-            # infer collision-free locomotion from task completion alone.
-            pair = robot + " | " + env
-            item = contacts.setdefault(pair, {"headers": 0, "first_time": float(world.current_time), "max_impulse": 0.})
-            item["headers"] += 1
-            for i in range(header.contact_data_offset, header.contact_data_offset + header.num_contact_data):
-                item["max_impulse"] = max(item["max_impulse"], float(np.linalg.norm(data[i].impulse)))
+            points = [{"position": list(d.position), "normal": list(d.normal), "impulse": list(d.impulse),
+                       "separation": float(d.separation)}
+                      for d in data[header.contact_data_offset:header.contact_data_offset+header.num_contact_data]]
+            t = float(world.current_time)
+            contact_stream.write(json.dumps({"time":t,"robot":robot,"environment":env,"points":points})+"\n")
+            accumulate_contact(contacts, robot, env, t, points)
     subscription = get_physx_simulation_interface().subscribe_contact_report_events(contact_callback)
     stderr = open(out / "worker.log", "w")
     if not args.preview:
@@ -225,8 +226,7 @@ try:
     report.update(simulation_seconds=t, wall_seconds=time.monotonic()-start, distance_m=distance, final_position=pos.tolist(),
                   sensor_frames=samples, final_action=action, assets_complete=manifest["complete"], collision_meshes=build["collision_meshes"])
     (out / "contacts.json").write_text(json.dumps(contacts, indent=2))
-    report["nonfoot_contact_pairs"] = [pair for pair in contacts if "_foot/" not in pair.split(" | ")[0]]
-    report["contact_quality_passed"] = bool(contacts) and not report["nonfoot_contact_pairs"]
+    report.update(contact_quality(contacts))
     trace.close()
 except (Exception, KeyboardInterrupt) as error:
     report.update(status="interrupted" if isinstance(error, KeyboardInterrupt) else "error", error=traceback.format_exc())
@@ -238,8 +238,8 @@ finally:
         worker.close()
     if "contacts" in locals():
         (out / "contacts.json").write_text(json.dumps(contacts, indent=2))
-        report["nonfoot_contact_pairs"] = [pair for pair in contacts if "_foot/" not in pair.split(" | ")[0]]
-        report["contact_quality_passed"] = bool(contacts) and not report["nonfoot_contact_pairs"]
+        report.update(contact_quality(contacts))
+        contact_stream.close()
     (out / "report.json").write_text(json.dumps(report, indent=2))
     print("OFFICE_REPORT", json.dumps(report), flush=True)
     app.close()

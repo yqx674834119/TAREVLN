@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "name": "office-readiness-v1",
+  "scope": "Predeclared engineering entry gate, not a paper benchmark. Freeze source and model hashes before running all 12 episodes.",
+  "tasks": ["lounge", "meeting"],
+  "spawns_xyz": [[-11.0, 29.5, 0.4], [-9.5, 28.0, 0.4]],
+  "yaws_rad": [0.0, 1.5707963267948966, 3.141592653589793],
+  "max_seconds": 300,
+  "minimum_episodes": 12,
+  "minimum_successes": 10,
+  "maximum_false_positive_stops": 0,
+  "maximum_falls": 0,
+  "maximum_nonfoot_physical_contact_episodes": 0,
+  "evaluation_fixture": "sim/fixtures/office-evaluation.json",
+  "prohibited_policy_inputs": ["scene USD", "oracle", "full-scene audit routes", "ground-truth object labels"]
+}
