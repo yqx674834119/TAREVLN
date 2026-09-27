@@ -49,3 +49,11 @@ SAM 仍接收 RGB 和几何框。第一版按高度扩展 SAM 支持引入桌沿
 新增 `--gicp-correspondence` 同时进入回放、在线 runner 和冻结套件清单，默认 0.5 m 保留；下一轮显式传入 0.25 m。估计器额外记录每内点 GICP 代价与初值修正量，它们不是米制 RMSE 或校准概率。接口含义依据 [small_gicp 官方 API](https://koide3.github.io/small_gicp/doc_py/index.html#small_gicp.RegistrationResult)。当前 014 使用启动时的旧定位参数及 74eaa03 源码快照，未热切换到新实现。
 
 所有回放在 `data/readiness/odometry-013-*`、`odometry-009-match025-regression` 和 `odometry-012-match025-regression`。比较图位于 `data/readiness/odometry-013-comparison/comparison.png`。新增已知小位移注册与无效参数测试，独立定位环境共 6 项全部通过；它们也不代表定位健康或设备安全验证。
+
+## 014 实际闭环与下一项回归
+
+`office-meeting-014-metric-v5` 使用 V5、metric_plane、SAM 与会议家具用途检查，源快照为 74eaa03，仍使用原始 0.5 m GICP 匹配距离。结果超时失败：179.915 s 仿真、950.80 s 实耗、44.056 m 行程、32 次 API 调用，零有效到达证据，非脚物理接触为零。实际执行 8 次 SAM 请求、47 个掩膜，处理时间中位数 45.2 ms、最大 511.8 ms。
+
+机器人进入了会议区域，但候选桌面、墙面显示屏的可见判断和家具归属未形成两次合格证据；椅面候选继续被身份检查拒绝。不能将进入房间计为任务成功。定位最大误差 0.249 m、终点 0.224 m、RMSE 0.115 m，原配置的在线定位问题仍存在。该运行使用多个开发改动，不是 SAM 或新步态的单变量成功率消融。
+
+下一项 `office-lounge-015-metric-v5` 已启动，源快照 5c4de21，明确使用 0.25 m 匹配、V5 和 metric_plane/SAM，时限 120 s。它检查新组合是否破坏此前可完成的休息区任务，结果待定。会议室需要继续改进，正式 12 项固定评测仍未执行。
