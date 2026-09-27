@@ -7,6 +7,8 @@ import traceback
 from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser()
 parser.add_argument("--out", required=True)
+parser.add_argument("--checkpoint", type=Path)
+parser.add_argument("--snapshot-only", action="store_true")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 app = AppLauncher(args).app
@@ -34,11 +36,16 @@ try:
     env = ManagerBasedRLEnv(cfg=cfg)
     actor = torch.nn.Sequential(torch.nn.Linear(48, 128), torch.nn.ELU(), torch.nn.Linear(128, 128),
                                 torch.nn.ELU(), torch.nn.Linear(128, 128), torch.nn.ELU(), torch.nn.Linear(128, 12)).to(args.device)
-    saved = torch.load(str(root / "assets/go2/checkpoint.pt"), map_location=args.device, weights_only=True)["model_state_dict"]
+    saved = torch.load(str(args.checkpoint or root / "assets/go2/checkpoint.pt"), map_location=args.device, weights_only=True)["model_state_dict"]
     actor.load_state_dict({k[6:]: v for k, v in saved.items() if k.startswith("actor.")})
     actor.eval()
     obs, _ = env.reset()
     robot = env.scene["robot"]
+    from go2_runtime_audit import physics_snapshot
+    (out/'physics.json').write_text(json.dumps(physics_snapshot(robot.root_physx_view),indent=2))
+    if args.snapshot_only:
+        env.close()
+        raise SystemExit(0)
     print("JOINTS", robot.joint_names, "DEFAULT", robot.data.default_joint_pos.tolist(), flush=True)
     stream = (out / "states.jsonl").open("w")
     schedule = [("settle", 2., [0, 0, 0]), ("stand", 3., [0, 0, 0]),

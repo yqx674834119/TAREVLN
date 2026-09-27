@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "robot_model": null,
+  "onboard_computer": null,
+  "control_repository": null,
+  "control_revision": null,
+  "manufacturer_high_level_sdk": null,
+  "camera_model": null,
+  "lidar_model": null,
+  "localization_source": null,
+  "calibration_bundle": null,
+  "device_command_watchdog_seconds": null,
+  "physical_estop": null,
+  "deployment_mode": "dry_run",
+  "allow_motion": false,
+  "maximum_velocity_mps_radps": [0.3, 0.2, 0.5],
+  "note": "Unknown fields require actual hardware evidence. This file cannot authorize motion. Simulation joint policies are excluded from hardware deployment."
+}

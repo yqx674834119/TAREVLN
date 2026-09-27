@@ -21,6 +21,7 @@ ap.add_argument("--geometry-only", action="store_true")
 ap.add_argument("--preview", action="store_true")
 ap.add_argument("--spawn", type=float, nargs=3)
 ap.add_argument("--yaw", type=float, default=0.)
+ap.add_argument("--checkpoint", type=Path)
 args = ap.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
@@ -28,7 +29,7 @@ private = ROOT / "data/sim/office/private"
 out = ROOT / "data/sim/office/runs" / args.name
 out.mkdir(parents=True, exist_ok=False)
 report = {"status": "starting", "success": False, "policy": "SysNav native TARE + DeepSeek Flash vision task adapter",
-          "robot": "articulated Go2 with NVIDIA flat-terrain checkpoint", "odometry": "ideal simulator pose",
+          "robot": "articulated Go2 with recorded simulation-only checkpoint", "odometry": "ideal simulator pose",
           "mode": "preview" if args.preview else "geometry_only" if args.geometry_only else "vlm_task",
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
           "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
@@ -37,7 +38,7 @@ archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
-                 "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "config/office-ros.yaml",
+                 "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch"]:
     file = ROOT / relative
     if file.exists():
@@ -83,7 +84,9 @@ try:
             shutil.copyfile(private / filename, archive / filename)
     stage = omni.usd.get_context().get_stage()
     world = World(physics_dt=.005, rendering_dt=.1, stage_units_in_meters=1., device="cpu")
-    controller = Go2Policy(stage, VLN / "assets/go2/go2_lab.usd", VLN / "assets/go2/checkpoint.pt", spawn)
+    checkpoint = args.checkpoint or VLN / "assets/go2/checkpoint.pt"
+    report.update(robot_checkpoint=str(checkpoint), robot_checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest())
+    controller = Go2Policy(stage, VLN / "assets/go2/go2_lab.usd", checkpoint, spawn)
     world.scene.add(controller.robot)
     for prim in stage.Traverse():
         if str(prim.GetPath()).startswith("/World/Go2/") and prim.HasAPI(UsdPhysics.RigidBodyAPI):

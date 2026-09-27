@@ -8,6 +8,9 @@ class VisualDecisionTests(unittest.TestCase):
         grounding = patch('vln_policy.office_decision.ground_visual_anchor', return_value={'valid': True, 'anchor_world_xyz': [1,2,.4]})
         grounding.start()
         self.addCleanup(grounding.stop)
+        surface=patch('vln_policy.office_decision.verify_table_surface',return_value={'valid':True})
+        surface.start()
+        self.addCleanup(surface.stop)
         self.context = {"candidates": [{"id": 3, "xyz": [1.,2.,.3]}],
                         "candidate_view_ids": {"front": [3], "left": []}}
         self.valid = {"action": "inspect", "candidate_id": 3, "selected_view": "front",
@@ -48,3 +51,13 @@ class VisualDecisionTests(unittest.TestCase):
         self.assertTrue(result['inside_target_area'])
         self.assertEqual(result['confidence'], .9)
         self.assertEqual(api.ask.call_args.args[2]['purpose'], 'arrival_verification')
+
+    def test_horizontal_chair_surface_cannot_complete_table_task(self):
+        api=Mock()
+        claimed=dict(self.valid,action='confirm',target_visible=True,inside_target_area=True,confidence=.9)
+        verifier={'armchair_group':True,'small_table':True,'wall_display':True,'inside_area':True,'confidence':.9}
+        api.ask.side_effect=[claimed,verifier]
+        with patch('vln_policy.office_decision.verify_table_surface',return_value={'valid':False,'reason':'chair_seat'}):
+            result=visual_decision(api,'task',[],dict(self.context,task='lounge'))
+        self.assertFalse(result['inside_target_area'])
+        self.assertEqual(result['action'],'explore')

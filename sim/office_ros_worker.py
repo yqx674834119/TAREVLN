@@ -211,11 +211,13 @@ def main():
                 if positive:
                     if positives and captured["time"] - positives[0]["time"] > 60:
                         positives = []
-                    current_evidence = {**captured, "anchor_world_xyz": last_decision["grounding"]["anchor_world_xyz"]}
+                    surface=last_decision['surface_identity']
+                    identity_evidence={k:surface[k] for k in ('surface_voxels_xy_10cm','surface_z_m')}
+                    current_evidence = {**captured, "anchor_world_xyz": last_decision["grounding"]["anchor_world_xyz"], **identity_evidence}
                     if positives and confirmed_from_two_positions(positives[0], current_evidence):
                         stopped = True
                     positives.append({"time": captured["time"], "position": captured["position"], "yaw": captured["yaw"], "call": api.calls,
-                                      "anchor_world_xyz": last_decision["grounding"]["anchor_world_xyz"]})
+                                      "anchor_world_xyz": last_decision["grounding"]["anchor_world_xyz"], **identity_evidence})
                 # A partial/occluded observation does not invalidate an earlier
                 # verified view; its evidence expires after the 60 s window.
                 memory.append({"time": captured["time"], "position_xy": [round(x,1) for x in captured["position"][:2]], **last_decision})

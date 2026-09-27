@@ -1,0 +1,9 @@
+[
+  {"response":"agent/vlm/call-0010/response.json","pixel":[430,300],"label":"table_front","expected_valid":true},
+  {"response":"agent/vlm/call-0010/response.json","pixel":[200,292],"label":"chair_seat_front","expected_valid":false},
+  {"response":"agent/vlm/call-0015/response.json","pixel":[320,300],"label":"same_table_right","expected_valid":true},
+  {"response":"agent/vlm/call-0015/response.json","pixel":[80,315],"label":"chair_seat_right","expected_valid":false},
+  {"response":"agent/vlm/call-0018/response.json","pixel":[120,300],"label":"same_table_second_position","expected_valid":true},
+  {"response":"agent/vlm/call-0010/response.json","pixel":[420,200],"label":"wall","expected_valid":false},
+  {"response":"agent/vlm/call-0010/response.json","pixel":[430,430],"label":"floor","expected_valid":false}
+]

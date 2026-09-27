@@ -2,6 +2,7 @@
 from .office_contract import validate_decision
 from .office_tasks import TASKS
 from .office_grounding import ground_visual_anchor
+from .office_surface import verify_table_surface
 import math
 
 
@@ -44,7 +45,11 @@ def visual_decision(api, prompt, images, context, views=()):
         features = all(check[k] for k in task["features"])
         result["target_visible"] = features
         result["grounding"] = grounding
-        result["inside_target_area"] = features and check["inside_area"] and grounding["valid"]
+        surface = {'valid':False,'reason':'geometry or task features rejected'}
+        if features and check['inside_area'] and grounding['valid']:
+            surface = verify_table_surface(api,check,grounding,views,context)
+        result['surface_identity'] = surface
+        result["inside_target_area"] = features and check["inside_area"] and grounding["valid"] and surface['valid']
         if result["action"] == "confirm" and not result["inside_target_area"]:
             result["action"] = "explore"
             result["reason"] = "Fresh visual verification rejected arrival: " + str(check.get("evidence", ""))

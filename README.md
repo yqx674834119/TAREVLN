@@ -4,6 +4,8 @@ This is the independent project workspace for A 5F → B 3F navigation. The proj
 
 ## Current stages
 
+- **Physical-dog readiness goal:** active iteration with explicit simulation, perception, sensor, interface and field gates. See [current status](docs/readiness/STATUS.md). The project is not yet ready for physical motion.
+
 - **Single-scene Office integration:** native SysNav TARE / local planning / path following now connects Isaac RGB and point clouds to DeepSeek Flash visual decisions and articulated Go2 control. The policy receives reachable candidate IDs and has no access to the evaluator scene or goal regions. See [Office runbook](docs/office-runbook.md); successful task completion is a separate runtime gate from installation and compilation.
 
 - **Map component:** OSM Nominatim resolves a named place, and Overpass downloads a small source snapshot. A strict exporter gives the policy only building identity/outlines and outdoor walkways. Raw OSM stays evaluator-side. AMap Web Service adapter supports geocoding, WGS84→GCJ02 conversion, and walking routes once `AMAP_WEB_KEY` is supplied. AMap coordinates remain tagged `GCJ02`; they are never silently merged with OSM WGS84 geometry.

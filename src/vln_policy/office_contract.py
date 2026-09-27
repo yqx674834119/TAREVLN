@@ -30,6 +30,13 @@ def confirmed_from_two_positions(previous, current):
     """Distinct recent camera poses, not duplicate frames or camera rotation."""
     dt = current["time"] - previous["time"]
     distance = math.dist(current["position"][:2], previous["position"][:2])
+    if previous.get('surface_voxels_xy_10cm') is not None or current.get('surface_voxels_xy_10cm') is not None:
+        a={tuple(p) for p in previous.get('surface_voxels_xy_10cm',[])}
+        b={tuple(p) for p in current.get('surface_voxels_xy_10cm',[])}
+        if min(len(a),len(b))<4 or len(a&b)<max(4,.1*min(len(a),len(b))):
+            return False
+        if abs(previous['surface_z_m']-current['surface_z_m'])>.06:
+            return False
     if previous.get("anchor_world_xyz") is not None and current.get("anchor_world_xyz") is not None:
         if math.dist(previous["anchor_world_xyz"], current["anchor_world_xyz"]) > 1.5:
             return False

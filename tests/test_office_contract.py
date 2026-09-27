@@ -37,3 +37,14 @@ class OfficeContractTest(unittest.TestCase):
         for b in ({"time": 8., "position": [0.,0.,.3]}, {"time": 75., "position": [1.,0.,.3]}, {"time": 8., "position": [8.,0.,.3]}):
             self.assertFalse(confirmed_from_two_positions(a,b))
         self.assertTrue(confirmed_from_two_positions(a, {"time": 8., "position": [1.,0.,.3]}))
+
+    def test_same_table_requires_overlapping_observed_surface(self):
+        a = {"time": 5., "position": [0.,0.,.3], "surface_z_m": .5,
+             "surface_voxels_xy_10cm": [[x,y] for x in range(5) for y in range(5)]}
+        b = dict(a, time=8., position=[1.,0.,.3])
+        self.assertTrue(confirmed_from_two_positions(a,b))
+        # Nearby identical-looking tables have disjoint observed metric patches.
+        self.assertFalse(confirmed_from_two_positions(a,dict(b,
+            surface_voxels_xy_10cm=[[x+6,y] for x,y in a['surface_voxels_xy_10cm']])))
+        self.assertFalse(confirmed_from_two_positions(a,dict(b,surface_z_m=.65)))
+        self.assertFalse(confirmed_from_two_positions(a,{k:v for k,v in b.items() if not k.startswith('surface_')}))
