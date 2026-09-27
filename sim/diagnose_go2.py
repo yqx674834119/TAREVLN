@@ -15,6 +15,7 @@ parser.add_argument("--disable-sleep", action="store_true")
 parser.add_argument("--controller", choices=('legacy','lab'), default='legacy')
 parser.add_argument("--ground", choices=('box','plane','plane_clean'), default='box')
 parser.add_argument("--ground-torsion-radius", type=float, help='Controlled override of ground/threshold torsional friction patch radii')
+parser.add_argument('--ground-contact-offset',type=float,help='Controlled ground/threshold contact generation distance; rest geometry unchanged')
 parser.add_argument("--yaw", type=float, default=0.)
 parser.add_argument("--threshold", type=float, default=0.)
 parser.add_argument("--checkpoint", type=Path)
@@ -63,10 +64,10 @@ try:
                     if prim.GetTypeName() == 'Plane':
                         UsdShade.MaterialBindingAPI.Apply(prim).Bind(material.material, materialPurpose='physics')
     else:
-        world.scene.add(FixedCuboid("/World/Ground", position=np.array([0., 0., -.05]),
+        world.scene.add(FixedCuboid("/World/Ground", name='ground', position=np.array([0., 0., -.05]),
                                    scale=np.array([100., 100., .1]), physics_material=material))
     if args.threshold:
-        world.scene.add(FixedCuboid("/World/Threshold", position=np.array([math.cos(args.yaw), math.sin(args.yaw), args.threshold / 2]),
+        world.scene.add(FixedCuboid("/World/Threshold", name='threshold', position=np.array([math.cos(args.yaw), math.sin(args.yaw), args.threshold / 2]),
                                    orientation=np.array([math.cos(args.yaw/2),0,0,math.sin(args.yaw/2)]),
                                    scale=np.array([.1, 20., args.threshold]), physics_material=material))
     if args.ground_torsion_radius is not None:
@@ -76,6 +77,11 @@ try:
                 collision = PhysxSchema.PhysxCollisionAPI.Apply(prim)
                 collision.CreateTorsionalPatchRadiusAttr(args.ground_torsion_radius)
                 collision.CreateMinTorsionalPatchRadiusAttr(args.ground_torsion_radius)
+    if args.ground_contact_offset is not None:
+        if not 0<args.ground_contact_offset<=.1:raise ValueError('Ground contact offset outside diagnostic range')
+        for prim in stage.Traverse():
+            if str(prim.GetPath()).startswith(('/World/Ground','/World/Threshold')) and prim.HasAPI(UsdPhysics.CollisionAPI):
+                PhysxSchema.PhysxCollisionAPI.Apply(prim).CreateContactOffsetAttr(args.ground_contact_offset)
     camera = None
     if args.video:
         from isaacsim.sensors.camera import Camera
@@ -122,6 +128,7 @@ try:
                 'enabled':UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get(),
                 'physics_material':str(bound.GetPath()) if bound else None,
                 'contact_offset':PhysxSchema.PhysxCollisionAPI(prim).GetContactOffsetAttr().Get(),
+                'rest_offset':PhysxSchema.PhysxCollisionAPI(prim).GetRestOffsetAttr().Get(),
                 'torsional_patch_radius':PhysxSchema.PhysxCollisionAPI(prim).GetTorsionalPatchRadiusAttr().Get(),
                 'minimum_torsional_patch_radius':PhysxSchema.PhysxCollisionAPI(prim).GetMinTorsionalPatchRadiusAttr().Get()})
     (out/'ground-colliders.json').write_text(json.dumps(ground_audit, indent=2))
@@ -236,7 +243,7 @@ try:
     loaded_feet={p.split('/collisions/')[0].split('/')[-1] for pair,item in pairs.items()
                  if not item['nonfoot'] and item['support_steps']>0
                  for p in pair.split(' | ') if '_foot/' in p}
-    report = {"physics": args.physics, "ground":args.ground,"ground_torsion_radius":args.ground_torsion_radius,"controller":args.controller, "disable_sleep":args.disable_sleep, "yaw": args.yaw, "threshold": args.threshold,
+    report = {"physics": args.physics, "ground":args.ground,"ground_torsion_radius":args.ground_torsion_radius,"ground_contact_offset":args.ground_contact_offset,"controller":args.controller, "disable_sleep":args.disable_sleep, "yaw": args.yaw, "threshold": args.threshold,
               "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
               "joint_names": policy.robot.dof_names, "phases": metrics, "contact_pairs": pairs,
               "nonfoot_pairs_after_settling": nonfoot,

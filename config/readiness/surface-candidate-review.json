@@ -1,0 +1,6 @@
+[
+  {"step":12000,"surface_id":"S0","label":"left chair seat, partly cropped","expected_valid":false},
+  {"step":12000,"surface_id":"S1","label":"tabletop between chairs","expected_valid":true},
+  {"step":12000,"surface_id":"S2","label":"left chair arm","expected_valid":false},
+  {"step":12000,"surface_id":"S3","label":"same left chair seat at rear image boundary","expected_valid":false}
+]

@@ -22,7 +22,13 @@ ap.add_argument('--fixed-threshold',type=float)
 ap.add_argument('--method',choices=('kiss','gicp'),default='kiss')
 ap.add_argument('--prediction',choices=('constant_velocity','static'),default='constant_velocity')
 ap.add_argument('--raw-scans',action='store_true',help='Use recorded rigid-mounted base-frame rays, without undoing truth registration')
+ap.add_argument('--range-noise-std',type=float,default=0.,help='Synthetic radial Gaussian noise in metres; not a calibrated sensor model')
+ap.add_argument('--point-dropout',type=float,default=0.)
+ap.add_argument('--seed',type=int,default=41)
 args=ap.parse_args()
+if args.range_noise_std<0 or not 0<=args.point_dropout<1:ap.error('Invalid synthetic corruption settings')
+if (args.range_noise_std or args.point_dropout) and not args.raw_scans:ap.error('Stress tests require raw base-frame scans')
+rng=np.random.default_rng(args.seed)
 root=Path(__file__).resolve().parents[1]
 vln=root.parent
 args.run=args.run.resolve();args.out=args.out.resolve()
@@ -49,6 +55,12 @@ try:
                 points=np.load(file.with_name('raw_'+file.name))['points_base_xyz']
             else:
                 points=(frame['points'][:,:3]-gt[:3,3])@gt[:3,:3]
+            if args.range_noise_std:
+                rays=points-np.array([0.,0.,.45])  # Recorded simulator lidar extrinsic.
+                directions=rays/np.linalg.norm(rays,axis=1,keepdims=True)
+                points=points+directions*rng.normal(0,args.range_noise_std,(len(points),1))
+            if args.point_dropout:
+                points=points[rng.random(len(points))>=args.point_dropout]
             # No pose, world point, frame filename, or labels cross this boundary.
             result=child.ask(float(frame['time']),points.tolist())
             row={'source_scan':file.name,'source_sha256':hashlib.sha256(file.read_bytes()).hexdigest(),
@@ -65,6 +77,8 @@ try:
     errors=np.array([r['translation_error_m'] for r in good])
     times=np.array([r['estimate']['processing_seconds'] for r in good])
     report={'method':args.method,'prediction':args.prediction,'raw_scans':args.raw_scans,
+            'synthetic_corruption':{'radial_noise_std_m':args.range_noise_std,'point_dropout':args.point_dropout,'seed':args.seed,
+                                    'scope':'assumed independent noise/dropout, no hardware calibration or scan motion distortion'},
             'scope':'isolated LiDAR-only odometry replay of virtual scans; not physical SLAM or navigation',
             'alignment':'first pose only, no trajectory fit','input_contract':['time','points_base_xyz'],
             'frames':len(rows),'valid_frames':len(good),'control_ready':False,'complete':len(rows)==len(list(args.run.glob('scan_*.npz'))) and len(good)==len(rows),

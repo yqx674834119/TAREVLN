@@ -12,6 +12,9 @@ ap.add_argument('--kind',choices=('gait','office'),required=True)
 ap.add_argument('--checkpoint',type=Path,required=True)
 ap.add_argument('--out',type=Path,required=True)
 ap.add_argument('--ground-torsion-radius',type=float)
+ap.add_argument('--ground-contact-offset',type=float)
+ap.add_argument('--sam',action='store_true')
+ap.add_argument('--api-proxy')
 ap.add_argument('--odometry',choices=('ideal','gicp'),default='ideal')
 ap.add_argument('--lidar-profile',choices=('legacy11','uniform64'),default='legacy11')
 args=ap.parse_args()
@@ -30,7 +33,8 @@ def manifest():
     return {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in source}
 frozen=manifest()
 (args.out/'freeze.json').write_text(json.dumps({'files':frozen,'config':cfg,'kind':args.kind,
-    'ground_torsion_radius':args.ground_torsion_radius,'odometry':args.odometry,'lidar_profile':args.lidar_profile},indent=2))
+    'ground_torsion_radius':args.ground_torsion_radius,'ground_contact_offset':args.ground_contact_offset,
+    'odometry':args.odometry,'lidar_profile':args.lidar_profile,'sam':args.sam,'api_proxy':args.api_proxy},indent=2))
 results=[]
 if args.kind=='gait':
     cases=list(itertools.product(cfg['initial_yaws_rad'],cfg['threshold_heights_m']))
@@ -45,12 +49,16 @@ for i,case in enumerate(cases):
         command=['sim/diagnose_go2.py','--yaw',str(yaw),'--threshold',str(threshold),'--out',str(run)]
         if args.ground_torsion_radius is not None:
             command+=['--ground-torsion-radius',str(args.ground_torsion_radius)]
+        if args.ground_contact_offset is not None:
+            command+=['--ground-contact-offset',str(args.ground_contact_offset)]
     else:
         task,spawn,yaw=case
         run=root/'data/sim/office/runs'/name
         command=['sim/run_office.py','--name',name,'--task',task,'--spawn',*map(str,spawn),
                  '--yaw',str(yaw),'--max-seconds',str(cfg['max_seconds']),
                  '--odometry',args.odometry,'--lidar-profile',args.lidar_profile]
+        if args.sam:command+=['--sam']
+        if args.api_proxy:command+=['--api-proxy',args.api_proxy]
     command=['bash','scripts/with_gpu_compat.sh',str(root.parent/'envs/isaac51/bin/python'),'-u',*command,
              '--checkpoint',str(args.checkpoint)]
     with (args.out/f'{name}.log').open('w') as log:

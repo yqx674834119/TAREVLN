@@ -61,3 +61,36 @@ class VisualDecisionTests(unittest.TestCase):
             result=visual_decision(api,'task',[],dict(self.context,task='lounge'))
         self.assertFalse(result['inside_target_area'])
         self.assertEqual(result['action'],'explore')
+
+    def test_malformed_verification_is_repaired_once_then_rejected(self):
+        api=Mock()
+        claimed=dict(self.valid,action='confirm',target_visible=True,inside_target_area=True,confidence=.9)
+        api.ask.side_effect=[claimed,{'type':'json_object'},{'type':'json_object'}]
+        result=visual_decision(api,'task',[],dict(self.context,task='lounge'))
+        self.assertEqual(api.ask.call_count,3)
+        self.assertFalse(result['inside_target_area'])
+        self.assertEqual(result['action'],'explore')
+        self.assertFalse(result['verification']['format_valid'])
+
+    def test_chair_point_can_be_repaired_to_observed_table_candidate(self):
+        api=Mock()
+        claimed=dict(self.valid,action='confirm',target_visible=True,inside_target_area=True,confidence=.9)
+        verifier={'armchair_group':True,'small_table':True,'wall_display':True,'inside_area':True,'confidence':.9}
+        api.ask.side_effect=[claimed,verifier]
+        proposed=dict(verifier,surface_id='S1',anchor_view='front',anchor_pixel_xy=[100,100])
+        with patch('vln_policy.office_decision.select_surface_anchor',return_value=proposed), \
+             patch('vln_policy.office_decision.verify_table_surface',side_effect=[{'valid':False,'reason':'chair_seat'},{'valid':True}]):
+            result=visual_decision(api,'task',[],dict(self.context,task='lounge'))
+        self.assertTrue(result['inside_target_area'])
+        self.assertEqual(result['verification']['surface_id'],'S1')
+
+    def test_sam_service_failure_cannot_bypass_arrival_gate(self):
+        api=Mock()
+        claimed=dict(self.valid,action='confirm',target_visible=True,inside_target_area=True,confidence=.9)
+        verifier={'armchair_group':True,'small_table':True,'wall_display':True,'inside_area':True,'confidence':.9}
+        api.ask.side_effect=[claimed,verifier]
+        with patch('vln_policy.office_decision.select_surface_anchor',side_effect=TimeoutError('worker timeout')):
+            result=visual_decision(api,'task',[],dict(self.context,task='lounge'),segmenter=Mock())
+        self.assertFalse(result['inside_target_area'])
+        self.assertEqual(result['action'],'explore')
+        self.assertIn('TimeoutError',result['verification']['segmentation_error'])

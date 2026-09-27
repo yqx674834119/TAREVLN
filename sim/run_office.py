@@ -25,6 +25,9 @@ ap.add_argument("--yaw", type=float, default=0.)
 ap.add_argument("--checkpoint", type=Path)
 ap.add_argument("--odometry", choices=["ideal", "gicp"], default="ideal")
 ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="legacy11")
+ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT relay, e.g. http://127.0.0.1:18119")
+ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
+ap.add_argument('--sam-gpu',type=int,default=2)
 args = ap.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
@@ -35,6 +38,8 @@ report = {"status": "starting", "success": False, "policy": "SysNav native TARE 
           "robot": "articulated Go2 with recorded simulation-only checkpoint", "odometry": args.odometry,
           "localization_control_ready": False, "physical_hardware_ready": False,
           "lidar_profile": args.lidar_profile,
+          "api_proxy": args.api_proxy,
+          "sam_enabled":args.sam,"sam_gpu":args.sam_gpu if args.sam else None,
           "mode": "preview" if args.preview else "geometry_only" if args.geometry_only else "vlm_task",
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
           "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
@@ -43,8 +48,9 @@ archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
-                 "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "config/office-ros.yaml",
+                 "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch", "scripts/odometry_worker.py",
+                 "scripts/sam_worker.py","config/sam2-provenance.json",*[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_perception').glob('*.py')],
                  *[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_localization').glob('*.py')]]:
     file = ROOT / relative
     if file.exists():
@@ -66,6 +72,7 @@ app = SimulationApp({"headless": True, "open_usd": str(private / "scene.usda"), 
                      "width": 640, "height": 480, "fast_shutdown": True})
 worker = None
 odometry = None
+sam = None
 try:
     import numpy as np
     from PIL import Image
@@ -79,6 +86,7 @@ try:
     from office_sandbox import OfficeProcess
     sys.path.insert(0, str(ROOT/'src'))
     from vln_localization.process import OdometryProcess
+    from vln_perception.process import SamProcess
 
     oracle_file = private / ("oracle.json" if args.task == "meeting" else "oracle_lounge.json")
     oracle = json.loads(oracle_file.read_text()) if oracle_file.exists() else {}
@@ -135,8 +143,11 @@ try:
             accumulate_contact(contacts, robot, env, t, points)
     subscription = get_physx_simulation_interface().subscribe_contact_report_events(contact_callback)
     stderr = open(out / "worker.log", "w")
+    if args.sam and not args.preview and not args.geometry_only:
+        sam=SamProcess(ROOT,out/'sam',args.sam_gpu)
+        report['sam_isolation']=sam.isolation
     if not args.preview:
-        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task)
+        worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task, api_proxy=args.api_proxy,sam_ipc=sam.ipc if sam else None)
     if args.odometry == 'gicp':
         odometry = OdometryProcess(ROOT, out/'odometry', out)
         odom_trace = (out/'odometry/poses.jsonl').open('w')
@@ -322,6 +333,8 @@ finally:
                 'processing_p95_ms':float(np.quantile(odometry_times,.95)*1000)}
     if worker:
         worker.close()
+    if sam:
+        sam.close()
     if "contacts" in locals():
         (out / "contacts.json").write_text(json.dumps(contacts, indent=2))
         report.update(contact_quality(contacts))

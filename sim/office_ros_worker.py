@@ -128,6 +128,7 @@ def main():
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--geometry-only", action="store_true")
     ap.add_argument("--task", choices=list(TASKS), default="meeting")
+    ap.add_argument('--sam-socket',type=Path)
     args = ap.parse_args()
     task = TASKS[args.task]
     args.output.mkdir(parents=True, exist_ok=True)
@@ -142,6 +143,8 @@ def main():
     thread = threading.Thread(target=rclpy.spin, args=(bridge,), daemon=True)
     thread.start()
     api = None if args.geometry_only else VisionAPI(args.output / "vlm", Path("/run/secrets/deepseek-api-key"), max_calls=60)
+    from vln_perception.client import SamClient
+    segmenter=SamClient(args.sam_socket) if args.sam_socket else None
     executor = ThreadPoolExecutor(max_workers=1)
     pending, captured = None, None
     try:
@@ -233,7 +236,7 @@ def main():
                 images, view_ids = annotated_views(obs, candidates)
                 prompt += "\nFor inspect, also return selected_view (front|left|rear|right): the view containing the opening or feature you want to approach. candidate_id MUST come from that same view's list. For example, investigating a feature in the front image requires a front-image candidate, not a marker from another camera. Markers indicate reachable positions, which can sometimes be occluded; TARE retains responsibility for the path.\nCandidate IDs projected in each view: " + json.dumps(view_ids)
                 captured = {"task": args.task, "time": obs["time"], "position": obs["position"], "yaw": obs["yaw"], "candidate_revision": snapshot["revision"], "candidates": candidates, "candidate_view_ids": view_ids}
-                pending = executor.submit(visual_decision, api, prompt, images, {"simulation_time": obs["time"], **captured}, obs["views"])
+                pending = executor.submit(visual_decision, api, prompt, images, {"simulation_time": obs["time"], **captured}, obs["views"],segmenter)
             if pending is not None:
                 command, reason = [0., 0., 0.], "waiting_for_vlm"
             if stopped:

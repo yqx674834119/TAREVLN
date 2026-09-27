@@ -5,10 +5,11 @@ import os
 from pathlib import Path
 import select
 import subprocess
+from urllib.parse import urlsplit
 
 
 class OfficeProcess:
-    def __init__(self, project: Path, output: Path, stderr, geometry_only=False, task="meeting"):
+    def __init__(self, project: Path, output: Path, stderr, geometry_only=False, task="meeting", api_proxy=None,sam_ipc=None):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav"
@@ -30,16 +31,24 @@ class OfficeProcess:
         for path in ("/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/ssl", "/etc/localtime"):
             if Path(path).exists():
                 args += ["--ro-bind", path, path]
+        if sam_ipc:args += ['--ro-bind',str(sam_ipc),'/sam-ipc']
         env = {"PATH": str(ros / "bin") + ":/usr/bin:/bin", "HOME": "/tmp/home", "LANG": "C.UTF-8",
                "PYTHONNOUSERSITE": "1", "PYTHONPATH": ":".join(["/app", *pythonpaths]),
                "LD_LIBRARY_PATH": ":".join(libs), "AMENT_PREFIX_PATH": ":".join(map(str, [*installs, ros])),
                "ROS_DISTRO": "humble", "ROS_VERSION": "2", "ROS_DOMAIN_ID": "93", "ROS_LOCALHOST_ONLY": "1",
                "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp", "RCUTILS_LOGGING_USE_STDOUT": "0", "ROS_LOG_DIR": "/output/ros-logs"}
         env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1"
+        if api_proxy:
+            endpoint=urlsplit(api_proxy)
+            if (endpoint.scheme!='http' or endpoint.hostname!='127.0.0.1' or not endpoint.port
+                or endpoint.username or endpoint.password or endpoint.path or endpoint.query or endpoint.fragment):
+                raise ValueError('API relay must be an explicit loopback HTTP CONNECT endpoint')
+            env['https_proxy']=api_proxy
         for name, value in env.items():
             args += ["--setenv", name, value]
         args += ["--chdir", "/tmp", str(ros / "bin/python"), "-u", "/worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
         args += ["--task", task]
+        if sam_ipc:args += ['--sam-socket','/sam-ipc/sam.sock']
         if geometry_only:
             args.append("--geometry-only")
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,

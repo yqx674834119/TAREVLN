@@ -1,0 +1,11 @@
+{
+  "recording":"office-lounge-009-gicp-dense",
+  "scope":"Predeclared synthetic stress replay on a development scene, not a model of the unknown physical lidar.",
+  "seed":41,
+  "cases":[
+    {"name":"range10mm-drop10","range_noise_std_m":0.01,"point_dropout":0.1},
+    {"name":"range30mm-drop30","range_noise_std_m":0.03,"point_dropout":0.3}
+  ],
+  "gates":"odometry-replay-gates.json",
+  "unmodelled":["rolling scan timing","range-dependent bias","glass and reflective returns","IMU bias","dynamic people","long-range revisits"]
+}
