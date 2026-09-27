@@ -14,12 +14,14 @@ def evaluate_object_stop(position, predicted_world_xyz, visible_prims, definitio
         distance = box_distance(position, target, 2)
         grounding = box_distance(predicted_world_xyz, target) if predicted_world_xyz is not None else None
         visible = target['prim'] in visible_prims
+        room=target.get('room_rectangle')
+        in_room=(room is None or (room[0]<=position[0]<=room[2] and room[1]<=position[1]<=room[3]))
         passed = (floor[0] <= position[2] <= floor[1]
                   and distance <= definition['maximum_footprint_distance_m']
                   and grounding is not None and grounding <= definition['maximum_grounding_error_m']
-                  and (visible or not definition['requires_visible_target']))
+                  and in_room and (visible or not definition['requires_visible_target']))
         matches.append(dict(prim=target['prim'], footprint_distance_m=distance,
-                            grounding_error_m=grounding, visible=visible, passed=passed))
+                            grounding_error_m=grounding, visible=visible, inside_target_room=in_room, passed=passed))
     return dict(passed=any(m['passed'] for m in matches), targets=matches,
                 predicted_world_xyz=predicted_world_xyz)
 

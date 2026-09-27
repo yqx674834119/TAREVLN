@@ -14,11 +14,16 @@ import traceback
 import zlib
 from contact_audit import accumulate_contact, contact_quality
 from sysnav_evaluation import evaluate_object_stop, visible_targets
+from review_camera import unobstructed_eye
+from camera_readiness import render_rgba
 import subprocess
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--name", required=True)
-ap.add_argument("--task", choices=["meeting", "lounge"], default="meeting")
+ap.add_argument("--task", choices=["meeting", "lounge", "meeting_crossroom"], default="meeting")
+ap.add_argument('--api-budget',type=int,default=150)
+ap.add_argument('--mp3d-scene',help='Converted MP3D scene; evaluator loads the original R2R-CE instruction')
+ap.add_argument('--mp3d-episode',type=int)
 ap.add_argument("--max-seconds", type=float, default=600)
 ap.add_argument("--geometry-only", action="store_true")
 ap.add_argument("--preview", action="store_true")
@@ -35,11 +40,23 @@ ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],defa
 args = ap.parse_args()
 if args.geometry_only or args.sam or args.preview:
     ap.error("Full SysNav requires all semantic modules; no geometry-only/preview/external-SAM mode")
+if not 1<=args.api_budget<=1500:ap.error('API budget must be 1..1500')
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'))
 from vln_policy.sysnav_tasks import TASKS
 VLN = ROOT.parent
 private = ROOT / "data/sim/office/private"
+mp3d=None
+if args.mp3d_scene:
+    if args.mp3d_episode is None or args.spawn is not None or args.yaw!=0.:
+        ap.error('MP3D requires an episode id and its original start pose')
+    from mp3d_episode import load_episode
+    mp3d=load_episode(VLN,args.mp3d_scene,args.mp3d_episode)
+    private=VLN/'assets/mp3d-isaac'/args.mp3d_scene
+    args.yaw=mp3d['yaw']
+elif args.mp3d_episode is not None:
+    ap.error('--mp3d-episode requires --mp3d-scene')
+instruction=mp3d['instruction'] if mp3d else TASKS[args.task][1]
 out = ROOT / "data/sim/office/runs" / args.name
 out.mkdir(parents=True, exist_ok=False)
 report = {"status": "starting", "success": False, "policy": "Full native SysNav + DeepSeek Flash",
@@ -47,19 +64,39 @@ report = {"status": "starting", "success": False, "policy": "Full native SysNav 
           "gicp_correspondence_m":args.gicp_correspondence,"localization_control_ready": False, "physical_hardware_ready": False,
           "lidar_profile": args.lidar_profile,
           "api_proxy": args.api_proxy,
+          "api_budget": args.api_budget,
           "surface_geometry":"native_sam2_lidar_fusion","sam_enabled":True,"sam_gpu":2,
           "mode": "sysnav_full",
           "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
-          "instruction": TASKS[args.task][1],
+          "instruction": instruction,
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
           "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
+if mp3d:
+    report.update(mode='sysnav_full_mp3d',task='mp3d:'+str(args.mp3d_episode),scene=args.mp3d_scene,
+                  episode_id=args.mp3d_episode,protocol='Isaac transfer of R2R-CE val_unseen; not official Habitat scores',
+                  evaluation_pending=True)
+    preflight_file=private/'preflight'/f'episode-{args.mp3d_episode}'/'report.json'
+    preflight=json.loads(preflight_file.read_text()) if preflight_file.exists() else {}
+    checkpoint=args.checkpoint or VLN/'assets/go2/checkpoint.pt'
+    verified=bool(preflight.get('version')=='go2-mp3d-spawn-v2' and preflight.get('physical_smoke_pass')
+        and preflight.get('scene_sha256')==hashlib.sha256((private/'scene.usda').read_bytes()).hexdigest()
+        and preflight.get('checkpoint_sha256')==hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+        and preflight.get('episode_id')==args.mp3d_episode)
+    report['spawn_preflight_passed']=verified
+    if not verified:
+        report.update(status='invalid_spawn',evaluation_pending=False,error='Go2 spawn preflight missing, stale or failed')
+        (out/'report.json').write_text(json.dumps(report,indent=2))
+        raise SystemExit(2)
+    shutil.copyfile(preflight_file,out/'spawn_preflight.json')
 (out / "report.json").write_text(json.dumps(report, indent=2))
 archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_sysnav_full.py", "sim/sysnav_full_worker.py", "sim/sysnav_full_sandbox.py", "sim/go2_policy.py",
                  "src/vln_policy/sysnav_tasks.py", "sim/sysnav_evaluation.py", "sim/fixtures/sysnav-object-evaluation.json",
-                 "sim/sysnav_go2_policy.py",
+                 "sim/sysnav_go2_policy.py", "sim/camera_readiness.py",
+                 "sim/planning_recorder.py", "src/vln_core/planning_geometry.py",
+                 "sim/mp3d_episode.py", "sim/build_mp3d_isaac.py", "sim/mp3d_textures.py", "sim/review_camera.py", "sim/check_mp3d_isaac.py", "scripts/benchmarks/run_isaac_mp3d.py", "scripts/benchmarks/evaluate_isaac_mp3d.py",
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/sysnav-full-ros.yaml", "sim/sysnav_panorama.py",
                  "config/sysnav-full-provenance.json", "patches/sysnav-full-isaac.patch", "scripts/odometry_worker.py",
                  "scripts/sam_worker.py","config/sam2-provenance.json",*[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_perception').glob('*.py')],
@@ -70,7 +107,8 @@ for relative in ["sim/run_sysnav_full.py", "sim/sysnav_full_worker.py", "sim/sys
         target = archive / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(file, target)
-        hashes[relative] = hashlib.sha256(file.read_bytes()).hexdigest()
+    hashes[relative] = hashlib.sha256(file.read_bytes()).hexdigest()
+if mp3d:(archive/'episode.json').write_text(json.dumps(mp3d,indent=2))
 # Snapshot exact upstream implementation and model manifest for this run.
 source_root=VLN/'deps/sysnav-full'
 for subtree in ('src/semantic_mapping/semantic_mapping','src/vlm_node/vlm_node'):
@@ -112,16 +150,17 @@ try:
     from vln_localization.process import OdometryProcess
     from vln_perception.process import SamProcess
 
-    oracle_file = private / ("oracle.json" if args.task == "meeting" else "oracle_lounge.json")
+    oracle_file = private / ("oracle_lounge.json" if args.task == "lounge" else "oracle.json")
     oracle = json.loads(oracle_file.read_text()) if oracle_file.exists() else {}
     object_evaluation = json.loads((ROOT/'sim/fixtures/sysnav-object-evaluation.json').read_text())
-    object_definition = object_evaluation['tasks'].get(args.task)
+    object_definition = None if mp3d else object_evaluation['tasks'].get(args.task)
     report['evaluation_definition'] = object_evaluation['version'] if object_definition else 'legacy-public-area-only'
     build = json.loads((private / "build.json").read_text())
-    manifest = json.loads((VLN / "assets/usd-cache/office-download.json").read_text())
-    if not args.preview and (not oracle or (not manifest["complete"] and not args.geometry_only)):
+    manifest = {'complete':True} if mp3d else json.loads((VLN / "assets/usd-cache/office-download.json").read_text())
+    if not mp3d and not args.preview and (not oracle or (not manifest["complete"] and not args.geometry_only)):
         raise RuntimeError("Task run requires complete assets and private evaluation definition")
-    spawn = args.spawn or oracle["start_xyz"]
+    spawn = mp3d['spawn'] if mp3d else (args.spawn or (object_definition or {}).get('start_xyz') or oracle["start_xyz"])
+    if mp3d:report['evaluation_definition']='R2R-CE goal geodesic <3 m and native STOP; separate Habitat navmesh evaluator'
     report["start_position"] = spawn
     for filename in (oracle_file.name, "scene.usda", "build.json"):
         if (private / filename).exists():
@@ -175,7 +214,8 @@ try:
         sam=SamProcess(ROOT,out/'sam',args.sam_gpu)
         report['sam_isolation']=sam.isolation
     if not args.preview:
-        worker = FullSysNavProcess(ROOT, out / "agent", stderr, task=args.task, api_proxy=args.api_proxy)
+        worker = FullSysNavProcess(ROOT, out / "agent", stderr, task=args.task, instruction=instruction,
+                                   api_proxy=args.api_proxy,api_budget=args.api_budget)
     if args.odometry == 'gicp':
         odometry = OdometryProcess(ROOT, out/'odometry', out,gicp_correspondence=args.gicp_correspondence)
         odom_trace = (out/'odometry/poses.jsonl').open('w')
@@ -271,11 +311,9 @@ try:
                 cp = pos + rot @ np.array([0.,0.,.45])
                 cq = rot_matrix_to_quat(rot @ view_rot)
                 camera.set_world_pose(cp, cq, camera_axes="world")
-                for _ in range(4):
-                    world.render()
-                rgb = camera.get_rgba()
-                if rgb is None or not rgb.size:
-                    raise RuntimeError("Cube camera produced no frame")
+                rgb,render_count=render_rgba(world,camera)
+                if render_count>4:
+                    report.setdefault('camera_readiness_retries',[]).append(dict(time=t,face=index,renders=render_count))
                 faces.append(rgb[:,:,:3].copy())
                 if index == 0:
                     Image.fromarray(rgb[:,:,:3]).save(out / f"rgb_{step:07d}_0.jpg")
@@ -286,7 +324,9 @@ try:
             obs['panorama'] = base64.b64encode(data.getvalue()).decode()
             # Review only: never supplied to the navigation or VLM process.
             eye = pos + np.array([-2.0*math.cos(yaw),-2.0*math.sin(yaw),1.6])
-            look = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*map(float,eye)), Gf.Vec3d(*map(float,pos+np.array([0.,0.,.15]))), Gf.Vec3d(0,0,1)).GetInverse().ExtractRotationQuat()
+            look_at=pos+np.array([0.,0.,.15])
+            eye=unobstructed_eye(query,look_at,eye)
+            look = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*map(float,eye)), Gf.Vec3d(*map(float,look_at)), Gf.Vec3d(0,0,1)).GetInverse().ExtractRotationQuat()
             chase.set_world_pose(eye, np.array([look.GetReal(),*look.GetImaginary()]), camera_axes="usd")
             for _ in range(8): world.render()
             review_rgb = chase.get_rgba()
@@ -315,6 +355,9 @@ try:
             minimum_dwell = object_definition['minimum_stop_seconds'] if object_definition else 1.
             dwell = dwell + .1 if speed < max_stop_speed else 0.
             if dwell >= minimum_dwell:
+                if mp3d:
+                    report.update(status='stopped_pending_evaluation',native_stop=True,stop_dwell=dwell)
+                    break
                 region = oracle["goal_rectangle"]
                 regions = oracle.get("goal_rectangles", [region])
                 floor_range = oracle.get("goal_z_range", [.05,.7])
@@ -334,13 +377,14 @@ try:
                 break
         else:
             dwell = 0.
-        if t > 2 and (pos[2] < -.05 or rot[2,2] < .55):
+        minimum_z=build.get('bounds_min',[0,0,0])[2]-.5 if mp3d else -.05
+        if t > 2 and (pos[2] < minimum_z or rot[2,2] < .55):
             report["status"] = "fallen"
             break
     else:
         report["status"] = "preview_complete" if args.preview else "timeout"
     report.update(simulation_seconds=t, wall_seconds=time.monotonic()-start, distance_m=distance, final_position=pos.tolist(),
-                  sensor_frames=samples, final_action=action, assets_complete=manifest["complete"], collision_meshes=build["collision_meshes"])
+                  sensor_frames=samples, final_action=action, assets_complete=manifest["complete"], collision_meshes=build.get("collision_meshes",build.get('meshes')))
     (out / "contacts.json").write_text(json.dumps(contacts, indent=2))
     report.update(contact_quality(contacts))
     trace.close()

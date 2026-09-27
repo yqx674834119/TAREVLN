@@ -45,13 +45,14 @@ if fixture.exists():
     for i,t in enumerate(targets):
         lo,hi=t['min'],t['max']
         ax.add_patch(plt.Rectangle(lo[:2],hi[0]-lo[0],hi[1]-lo[1],color='#16a34a',alpha=.4,
-                                  label='Target chair truth' if i==0 else None))
+                                  label='Target object truth' if i==0 else None))
+        if t.get('room_rectangle'):
+            r=t['room_rectangle']
+            ax.add_patch(plt.Rectangle(r[:2],r[2]-r[0],r[3]-r[1],fill=False,color='#16a34a',lw=.8))
 ax.plot(pos[:,0],pos[:,1],color='#2563eb',lw=2,label='Actual trajectory')
 ax.scatter(*pos[0,:2],c='#111827',s=45,label='Start')
-ax.scatter(*pos[-1,:2],c='#dc2626',marker='X',s=65,label='Stop')
-ax.set(xlim=(pos[:,0].min()-1.2,max(pos[:,0].max()+1.2,-4.5)),
-       ylim=(pos[:,1].min()-1.5,max(pos[:,1].max()+1.5,34)),
-       xlabel='World x (m)',ylabel='World y (m)',title='Evaluator view; no truth supplied to policy')
+ax.scatter(*pos[-1,:2],c='#dc2626',marker='X',s=65,label='Final position')
+ax.set(xlabel='World x (m)',ylabel='World y (m)',title='Evaluator view; no truth supplied to policy')
 ax.set_aspect('equal');ax.legend(fontsize=8);ax.grid(alpha=.2)
 ax=axs[1]
 ax.plot(times,[r['speed'] for r in rows],color='#2563eb',lw=1,label='3D base speed')

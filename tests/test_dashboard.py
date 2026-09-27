@@ -67,6 +67,23 @@ class DashboardTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.console.start('habitat:7',120)
 
+    def test_planning_replay_never_uses_future_frames(self):
+        run=self.project/'data/sim/office/runs/planning'
+        p=run/'agent/planning';p.mkdir(parents=True)
+        (run/'report.json').write_text('{"task":"lounge"}')
+        entries=[]
+        for t in (1.,2.):
+            name=f'plan-{int(t*1000):010d}.json'
+            row=dict(time=t,robot=dict(position=[t,0,0]),layers={})
+            (p/name).write_text(json.dumps(row))
+            entries.append(dict(**row,file=name))
+        (p/'index.jsonl').write_text('\n'.join(json.dumps(x) for x in entries))
+        self.assertFalse(self.console.planning('office:planning',.5)['available'])
+        result=self.console.planning('office:planning',1.5)
+        self.assertEqual(result['time'],1.)
+        self.assertEqual(result['trail'],[[1.,0,0]])
+        with self.assertRaises(ValueError):self.console.planning('office:planning',float('nan'))
+
     def test_media_rejects_traversal_and_symlinks(self):
         run = self.project/'data/sim/office/runs/test';run.mkdir(parents=True)
         (run/'report.json').write_text('{"task":"lounge"}')

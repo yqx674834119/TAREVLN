@@ -1,12 +1,15 @@
 {
-  "version": "sysnav-office-object-v1",
+  "version": "sysnav-office-object-v2",
   "scope": "Custom single-scene object approach acceptance, not benchmark SR/SPL",
-  "frozen_before_run": "Runs after ui-20260928-014610-2e945; previous reports are not rescored",
+  "frozen_before_run": "v1 chair rules unchanged; cross-room monitor rules fixed before the first cross-room run",
   "tasks": {
     "lounge": {
       "maximum_footprint_distance_m": 1.0,
       "maximum_grounding_error_m": 0.4,
-      "base_z_range_m": [0.05, 0.7],
+      "base_z_range_m": [
+        0.05,
+        0.7
+      ],
       "minimum_stop_seconds": 1.0,
       "maximum_stop_speed_m_s": 0.06,
       "requires_visible_target": true,
@@ -14,13 +17,105 @@
       "targets": [
         {
           "prim": "/World/Office/SM_Armchair3_234",
-          "min": [-6.0688257732610715, 29.78279820883663, -0.0000007361589176068387],
-          "max": [-5.125174911184859, 30.91720195837939, 0.7899993184265529]
+          "min": [
+            -6.0688257732610715,
+            29.78279820883663,
+            -7.361589176068387e-07
+          ],
+          "max": [
+            -5.125174911184859,
+            30.91720195837939,
+            0.7899993184265529
+          ]
         },
         {
           "prim": "/World/Office/SM_Armchair4_237",
-          "min": [-6.226004923679096, 32.065557897403714, -0.0000004309831369498501],
-          "max": [-5.139995302424192, 33.29844109956453, 0.7899996236023347]
+          "min": [
+            -6.226004923679096,
+            32.065557897403714,
+            -4.309831369498501e-07
+          ],
+          "max": [
+            -5.139995302424192,
+            33.29844109956453,
+            0.7899996236023347
+          ]
+        }
+      ]
+    },
+    "meeting_crossroom": {
+      "maximum_footprint_distance_m": 2.0,
+      "maximum_grounding_error_m": 0.4,
+      "base_z_range_m": [
+        0.05,
+        0.7
+      ],
+      "minimum_stop_seconds": 1.0,
+      "maximum_stop_speed_m_s": 0.06,
+      "requires_visible_target": true,
+      "start_xyz": [
+        -11.0,
+        29.5,
+        0.4
+      ],
+      "authoring_evidence": "Three separate meeting areas verified in the existing office evaluator. Exact wall-display bounds from asset inventory; reception TV excluded. Robot must enter the same display room.",
+      "targets": [
+        {
+          "prim": "/World/Office/SM_TV_for_wall2",
+          "min": [
+            1.9484629220118057,
+            35.6019994789524,
+            1.5000004066431847
+          ],
+          "max": [
+            3.3915370022394935,
+            35.68062503105753,
+            2.326592312456839
+          ],
+          "room_rectangle": [
+            -4.2,
+            36.3,
+            5.3,
+            43.2
+          ]
+        },
+        {
+          "prim": "/World/Office/SM_TV_for_wall5",
+          "min": [
+            -0.10753700238209507,
+            35.31953116740701,
+            1.5000004066431847
+          ],
+          "max": [
+            1.3355370169534164,
+            35.39815560188003,
+            2.326592312456839
+          ],
+          "room_rectangle": [
+            -0.5,
+            29.0,
+            5.3,
+            34.8
+          ]
+        },
+        {
+          "prim": "/World/Office/SM_TV_for_wall_5",
+          "min": [
+            3.242462997617905,
+            23.81953116740701,
+            1.5000004066431847
+          ],
+          "max": [
+            4.6855370169534165,
+            23.89815560188002,
+            2.326592312456839
+          ],
+          "room_rectangle": [
+            -0.6,
+            13.2,
+            5.3,
+            23.1
+          ]
         }
       ]
     }

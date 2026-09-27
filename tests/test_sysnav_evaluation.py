@@ -33,6 +33,11 @@ class ObjectAcceptanceTest(unittest.TestCase):
         query.raycast_closest.return_value={'hit':True,'collision':'/World/Wall/mesh'}
         self.assertEqual(visible_targets(query,[1.5,1.5,.85],self.definition),[])
 
+    def test_nearby_target_in_other_room_is_rejected(self):
+        self.definition['targets'][0]['room_rectangle']=[2.,0.,5.,4.]
+        self.assertFalse(self.check())
+        self.assertTrue(self.check(position=[2.1,1.5,.4]))
+
     def test_first_hit_must_be_target_instance(self):
         query=Mock()
         query.raycast_closest.return_value={'hit':True,'collision':'/World/ChairOther/mesh'}

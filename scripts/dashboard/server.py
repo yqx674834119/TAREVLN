@@ -14,6 +14,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 import uuid
+import math
+import re
 
 PROJECT = Path(__file__).resolve().parents[2]
 ROOT = PROJECT.parent
@@ -68,6 +70,10 @@ class Console:
     def catalog(self):
         return dict(tasks=[dict(id='sysnav:'+k,kind='office',title=v[0],instruction=v[1],
                                label='Isaac · Go2 · 完整 SysNav · DeepSeek') for k,v in SYSNAV_TASKS.items()]+
+                   [dict(id='isaacmp3d:'+k,kind='office',title='Isaac MP3D · R2R Episode '+k,
+                         instruction=e['instruction']['instruction_text'],label='Isaac 迁移评测 · Go2 · 完整 SysNav')
+                    for k,e in sorted(self.episodes.items(),key=lambda x:int(x[0]))
+                    if (self.root/'assets/mp3d-isaac/x8F5xyUWy9e/scene.usda').exists()]+
                    [dict(id='office:'+k, kind='office', title={'lounge':'寻找等候休息区','meeting':'寻找会议区'}[k],
                                instruction=v['instruction'], label='Isaac · Go2 · TARE + VLM') for k,v in TASKS.items()] +
                    [dict(id='habitat:'+k, kind='habitat', title='R2R-CE · Episode '+k,
@@ -93,7 +99,8 @@ class Console:
                     continue
                 report = read_json(p/'report.json')
                 records['office:'+p.name] = dict(id='office:'+p.name,kind='office',path=p,
-                    name=p.name, task_id=('sysnav:' if report.get('mode')=='sysnav_full' else 'office:')+report.get('task','lounge'), status=report.get('status','unknown'),
+                    name=p.name, task_id=('isaacmp3d:'+str(report['episode_id']) if report.get('mode')=='sysnav_full_mp3d' else
+                        ('sysnav:' if report.get('mode')=='sysnav_full' else 'office:')+report.get('task','lounge')), status=report.get('status','unknown'),
                     success=report.get('success',False), stamp=p.stat().st_mtime)
         for p in (self.root/'outputs/benchmarks').glob('*/vlm/*'):
             if not p.is_dir() or not (p/'preflight.json').exists():
@@ -139,6 +146,25 @@ class Console:
     def image_url(self, record, path):
         return '/media?id='+quote(record['id'],safe='')+'&file='+quote(str(path.relative_to(record['path'])),safe='')
 
+    def planning(self,identifier,timestamp):
+        if not math.isfinite(timestamp) or timestamp<0:raise ValueError('Invalid planning time')
+        record=self.record(identifier)
+        root=record['path']/'agent/planning'
+        entries=[r for r in read_lines(root/'index.jsonl') if r['time']<=timestamp+.001]
+        if not entries:return dict(available=False,reason='该时刻没有记录原生 TARE 规划数据')
+        row=max(entries,key=lambda r:r['time'])
+        if not re.fullmatch(r'plan-\d{10}\.json',row['file']):raise ValueError('Invalid planning frame')
+        path=root/row['file']
+        if path.is_symlink():raise ValueError('Planning symlinks are not allowed')
+        result=read_json(path)
+        if not result:return dict(available=False,reason='规划帧尚未完成写入')
+        trail=[r['robot']['position'] for r in entries]
+        history=[]
+        for r in entries:
+            points=r.get('waypoint')
+            if points and (not history or points[0]!=history[-1]):history.append(points[0])
+        return dict(available=True,**result,trail=trail[::max(1,len(trail)//1500)],waypoint_history=history[-250:])
+
     def detail(self, identifier):
         r = self.record(identifier)
         now = time.monotonic()
@@ -155,7 +181,7 @@ class Console:
             for path in sorted(p.glob('chase_*.jpg')):
                 index = int(path.stem.split('_')[1])
                 front = p/f'rgb_{index:07d}_0.jpg'
-                if report.get('mode')=='sysnav_full':
+                if report.get('mode','').startswith('sysnav_full'):
                     front = p/f'panorama_{index:07d}.jpg'
                 frames.append(dict(t=round(index*.005+.015,3),chase=self.image_url(r,path),
                                    rgb=self.image_url(r,front) if front.exists() else None))
@@ -182,7 +208,8 @@ class Console:
                 rooms=current.get('action',{}).get('rooms'),objects=current.get('action',{}).get('objects'))
             result = {k:report.get(k) for k in ['success','status','simulation_seconds','wall_seconds','distance_m',
                 'contact_quality_passed','odometry','surface_geometry','physical_hardware_ready',
-                'acceptance_passed','evaluation_definition','independent_object_evaluation','instruction'] if k in report}
+                'acceptance_passed','evaluation_definition','independent_object_evaluation','instruction',
+                'benchmark_result','protocol','scene','episode_id'] if k in report}
         else:
             report = read_json(p/'result.json')
             raw = read_json(p/'trajectory.json')
@@ -209,13 +236,22 @@ class Console:
         frames.sort(key=lambda f:f['t'])
         result = dict(**{k:v for k,v in r.items() if k!='path'}, frames=frames,trajectory=trajectory,
             decisions=decisions,progress=progress,result=result,
-            semantics=('Isaac PhysX · Go2 · 完整 SysNav · DeepSeek · 全景 RGB' if report.get('mode')=='sysnav_full' else 'Isaac PhysX · articulated Go2 · TARE + custom VLM') if r['kind']=='office' else 'Habitat-Sim · kinematic navigation agent · VLM baseline',
+            planning_available=(p/'agent/planning/index.jsonl').exists(),
+            semantics=('Isaac PhysX · Go2 · 完整 SysNav · DeepSeek · 全景 RGB'+(' · MP3D 迁移协议' if report.get('mode')=='sysnav_full_mp3d' else '') if report.get('mode','').startswith('sysnav_full') else 'Isaac PhysX · articulated Go2 · TARE + custom VLM') if r['kind']=='office' else 'Habitat-Sim · kinematic navigation agent · VLM baseline',
             unit='s' if r['kind']=='office' else 'step')
         self.cache[identifier] = (now,result)
         return result
 
     def command(self, task_id, duration, name):
         base = ['bash', str(self.project/'scripts/with_gpu_compat.sh')]
+        if task_id.startswith('isaacmp3d:') and task_id[10:] in self.episodes:
+            if duration not in (20,30,60,120,300):raise ValueError('Unsupported duration')
+            if not (self.root/'assets/mp3d-isaac/x8F5xyUWy9e/scene.usda').exists():
+                raise ValueError('Converted MP3D scene unavailable')
+            command=base+['python3','-u','scripts/benchmarks/run_isaac_mp3d.py','--name',name,
+                '--episode-id',task_id[10:],'--max-seconds',str(duration)]
+            record_path=self.project/'data/sim/office/runs'/name
+            return command,record_path,'office:'+name,record_path
         if task_id.startswith('sysnav:') and task_id[7:] in SYSNAV_TASKS:
             if duration not in (20,30,60,120,300):
                 raise ValueError('Unsupported duration')
@@ -225,6 +261,7 @@ class Console:
             command=base+[str(self.root/'envs/isaac51/bin/python'),'-u','sim/run_sysnav_full.py',
                 '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
                 '--odometry','gicp','--lidar-profile','uniform64','--api-proxy','http://127.0.0.1:18119']
+            if task_id=='sysnav:meeting_crossroom':command+=['--api-budget','600']
             record_path=self.project/'data/sim/office/runs'/name
             return command,record_path,'office:'+name,record_path
         if task_id.startswith('office:') and task_id[7:] in TASKS:
@@ -259,7 +296,7 @@ class Console:
                 process = subprocess.Popen(command,cwd=self.project,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,
                     env={**os.environ,'OMNI_KIT_ACCEPT_EULA':'YES','HABITAT_SIM_LOG':'quiet','MAGNUM_LOG':'quiet',
                          'HTTPS_PROXY':'http://127.0.0.1:18119'},start_new_session=True)
-            job = dict(id=name,name=name,task_id=task_id,kind='office' if task_id.startswith('sysnav:') else task_id.split(':')[0],process=process,
+            job = dict(id=name,name=name,task_id=task_id,kind='office' if task_id.startswith(('sysnav:','isaacmp3d:')) else task_id.split(':')[0],process=process,
                 record_path=path,record_id=record_id,stop_root=stop_root,started=time.time())
             self.jobs[name] = job
             return dict(job_id=name,record_id=record_id)
@@ -323,10 +360,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(console.scan())
             if url.path=='/api/run':
                 return self.send(console.detail(query.get('id',[''])[0]))
+            if url.path=='/api/planning':
+                return self.send(console.planning(query.get('id',[''])[0],float(query.get('time',['0'])[0])))
             if url.path=='/media':
                 path = console.media(query.get('id',[''])[0],query.get('file',[''])[0])
                 return self.send(path.read_bytes(),content_type=mimetypes.guess_type(str(path))[0])
-            files = {'/':'index.html','/app.js':'app.js','/style.css':'style.css'}
+            files = {'/':'index.html','/app.js':'app.js','/planning.js':'planning.js','/style.css':'style.css'}
             if url.path in files:
                 path = PROJECT/'frontend'/files[url.path]
                 return self.send(path.read_bytes(),content_type=mimetypes.guess_type(str(path))[0]+'; charset=utf-8')

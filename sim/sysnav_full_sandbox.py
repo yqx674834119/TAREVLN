@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 
 class FullSysNavProcess:
-    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None):
+    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None,instruction=None,api_budget=150):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav-full"
@@ -30,6 +30,7 @@ class FullSysNavProcess:
                 "--ro-bind", str(project / "src"), "/app",
                 "--ro-bind", str(project / "sim/sysnav_full_worker.py"), "/sim/sysnav_full_worker.py",
                 "--ro-bind", str(project / "sim/office_ros_worker.py"), "/sim/office_ros_worker.py",
+                "--ro-bind", str(project / "sim/planning_recorder.py"), "/sim/planning_recorder.py",
                 "--ro-bind", str(envroot), str(envroot),
                 "--ro-bind", str(root / "deps/sam2"), str(root / "deps/sam2"),
                 "--ro-bind", str(gpulibs), str(gpulibs),
@@ -55,7 +56,7 @@ class FullSysNavProcess:
                "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp", "RCUTILS_LOGGING_USE_STDOUT": "0", "ROS_LOG_DIR": "/output/ros-logs"}
         env.update(VLM_PROVIDER='deepseek', DEEPSEEK_MODEL='deepseek-flash',
                    DEEPSEEK_API_KEY_FILE='/run/secrets/deepseek-api-key',
-                   SYSNAV_API_LOG='/output/api.jsonl', SYSNAV_MAX_API_CALLS='150',
+                   SYSNAV_API_LOG='/output/api.jsonl', SYSNAV_MAX_API_CALLS=str(api_budget),
                    SYSNAV_YOLO_MODEL='/models/sysnav/yoloe-26x-seg.pt',
                    SYSNAV_TEXT_EMBEDDINGS='/models/sysnav/text-embeddings.pt',
                    SYSNAV_SAM_CHECKPOINT='/models/sam/sam2.1_hiera_base_plus.pt',
@@ -75,6 +76,7 @@ class FullSysNavProcess:
             args += ["--setenv", name, value]
         args += ["--chdir", "/workspace", str(envroot / "bin/python"), "-u", "/sim/sysnav_full_worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
         args += ["--task", task]
+        if instruction is not None:args+=['--instruction',instruction]
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,
                                         text=True, bufsize=1, env={"PATH": "/usr/bin:/bin"})
 

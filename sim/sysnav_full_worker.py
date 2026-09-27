@@ -23,6 +23,7 @@ from tare_planner.msg import (RoomNodeList, ObjectNodeList, DetectionResult, Roo
     NavigationQuery, VlmAnswer, TargetObjectInstruction, TargetObject, ViewpointRep,
     TargetObjectWithSpatial, ObjectType)
 from office_ros_worker import Bridge as SensorBridge
+from planning_recorder import PlanningRecorder
 from vln_policy.sysnav_tasks import TASKS as PUBLIC_TASKS
 TASKS = {key:value[1] for key,value in PUBLIC_TASKS.items()}
 
@@ -37,6 +38,7 @@ class Bridge(SensorBridge):
         self.counts = Counter(self.counts)
         self.status, self.instruction = {}, None
         self.objects, self.rooms = {}, {}
+        self.planning=PlanningRecorder(self,output)
         for topic, kind in [
             ('/room_nodes_list',RoomNodeList), ('/object_nodes_list',ObjectNodeList),
             ('/detection_result',DetectionResult), ('/room_type_query',RoomType),
@@ -86,6 +88,7 @@ class Bridge(SensorBridge):
         self.events.write(json.dumps(row)+'\n')
 
     def ingest(self,obs):
+        self.planning.observe(obs)
         stamp=super().ingest(obs)
         if 'panorama' in obs:
             arr=np.frombuffer(base64.b64decode(obs['panorama']),dtype=np.uint8)
@@ -105,12 +108,15 @@ def main():
     ap.add_argument('--source',type=Path,required=True)
     ap.add_argument('--config',type=Path,required=True)
     ap.add_argument('--output',type=Path,required=True)
-    ap.add_argument('--task',choices=TASKS,required=True)
+    ap.add_argument('--task',choices=TASKS,default='lounge')
+    ap.add_argument('--instruction',help='Public language instruction only; no goal coordinates')
     args=ap.parse_args()
     forbidden=Path('/home/yqx/VLN/cross-building-floor-nav/data/sim/office/private/oracle.json')
     if forbidden.exists():
         raise RuntimeError('Evaluator data is visible to the policy')
-    (args.output/'isolation.json').write_text(json.dumps({'oracle_visible':False,'scene_visible':False,'stack':'native SysNav','instruction':TASKS[args.task]}))
+    instruction=args.instruction or TASKS[args.task]
+    if not 0<len(instruction)<=8192:raise ValueError('Invalid language instruction')
+    (args.output/'isolation.json').write_text(json.dumps({'oracle_visible':False,'scene_visible':False,'stack':'native SysNav','instruction':instruction}))
     children,logs=[],[]
     rclpy.init()
     bridge=Bridge(args.output)
@@ -147,7 +153,7 @@ def main():
             nodes=set(bridge.get_node_names())
             ready={'vlm_node','semantic_mapping_node','detection_node'}.issubset(nodes)
             if ready and not sent and bridge.counts['detection_result']>0:
-                bridge.keyboard.publish(String(data=TASKS[args.task]));sent=True
+                bridge.keyboard.publish(String(data=instruction));sent=True
             stop=bool(bridge.status.get('stop') and 0<=obs['time']-bridge.status.get('time',-100)<2)
             command=list(bridge.command)
             reason='native_sysnav_path_follower'
@@ -160,6 +166,7 @@ def main():
             answer={'cmd_vel':command,'reason':reason,'stop':stop,'counts':dict(bridge.counts),
                     'sysnav':bridge.status,'instruction':bridge.instruction,'rooms':len(bridge.rooms),'objects':len(bridge.objects)}
             trace.write(json.dumps({'time':obs['time'],**answer})+'\n')
+            bridge.planning.save(obs['time'])
             print(json.dumps(answer),flush=True)
     finally:
         for p in children:

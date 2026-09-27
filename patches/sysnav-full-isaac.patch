@@ -1,7 +1,7 @@
 From de4f6d08f7dda77ecde14dc7c88040648d4e3b66 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:32:16 +0800
-Subject: [PATCH 1/2] Port native SysNav semantics to Isaac panoramic sensors
+Subject: [PATCH 1/3] Port native SysNav semantics to Isaac panoramic sensors
  and DeepSeek
 
 ---
@@ -684,7 +684,7 @@ index 7ae46d3..d6428f8 100644
 From 8496d75ba92b200979b2cfb445155c1cfd417420 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:45:40 +0800
-Subject: [PATCH 2/2] Fix ROS object identifiers and constrain task
+Subject: [PATCH 2/3] Fix ROS object identifiers and constrain task
  decomposition to detector vocabulary
 
 ---
@@ -796,6 +796,41 @@ index d6428f8..152db0a 100644
              attribute_condition_anchor: str
          try:
              completion = self.vlm_model.beta.chat.completions.parse(
+-- 
+2.55.0
+
+
+From 13f567ae1fdcbb661dd43301d6efc9d6fd3ac7e5 Mon Sep 17 00:00:00 2001
+From: mac <mac@macdeMacBook-Pro-3.local>
+Date: Mon, 28 Sep 2026 02:34:46 +0800
+Subject: [PATCH 3/3] Use floating-point font size in ROS overlay messages
+
+---
+ src/vlm_node/vlm_node/vlm_reasoning_node.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+index 152db0a..0a3d63e 100644
+--- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
++++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+@@ -375,7 +375,7 @@ class VLMNode(Node):
+         overlay_msg.text = text
+         overlay_msg.width = 640
+         overlay_msg.height = 100
+-        overlay_msg.text_size = 24
++        overlay_msg.text_size = 24.0
+         self.text_overlay_publisher.publish(overlay_msg)
+ 
+         def clear_text():
+@@ -385,7 +385,7 @@ class VLMNode(Node):
+                 clear_msg.text = ""
+                 clear_msg.width = 640
+                 clear_msg.height = 100
+-                clear_msg.text_size = 24
++                clear_msg.text_size = 24.0
+                 self.text_overlay_publisher.publish(clear_msg)
+ 
+         threading.Timer(duration, clear_text).start()
 -- 
 2.55.0
 
