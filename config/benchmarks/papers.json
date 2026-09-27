@@ -1,0 +1,65 @@
+{
+  "selection_date": "2026-09-28",
+  "selection_basis": "Foundational benchmark, influential history/topological architectures, official code and relevance to continuous navigation; not a live citation-count ranking.",
+  "papers": [
+    {
+      "id": "r2r2018",
+      "title": "Vision-and-Language Navigation: Interpreting Visually-Grounded Navigation Instructions in Real Environments",
+      "venue": "CVPR 2018",
+      "repo": "peteanderson80/Matterport3DSimulator",
+      "pdf": "https://openaccess.thecvf.com/content_cvpr_2018/papers/Anderson_Vision-and-Language_Navigation_Interpreting_CVPR_2018_paper.pdf",
+      "benchmarks": [
+        "R2R"
+      ]
+    },
+    {
+      "id": "vlnce2020",
+      "title": "Beyond the Nav-Graph: Vision-and-Language Navigation in Continuous Environments",
+      "venue": "ECCV 2020",
+      "repo": "jacobkrantz/VLN-CE",
+      "pdf": "https://www.ecva.net/papers/eccv_2020/papers_ECCV/papers/123730103.pdf",
+      "benchmarks": [
+        "R2R-CE"
+      ]
+    },
+    {
+      "id": "hamt2021",
+      "title": "History Aware Multimodal Transformer for Vision-and-Language Navigation",
+      "venue": "NeurIPS 2021",
+      "repo": "cshizhe/VLN-HAMT",
+      "pdf": "https://proceedings.neurips.cc/paper_files/paper/2021/file/2e5c2cb8d13e8fba78d95211440ba326-Paper.pdf",
+      "benchmarks": [
+        "R2R",
+        "RxR",
+        "R4R",
+        "R2R-Back",
+        "R2R-Last",
+        "REVERIE",
+        "CVDN"
+      ]
+    },
+    {
+      "id": "duet2022",
+      "title": "Think Global, Act Local: Dual-Scale Graph Transformer for Vision-and-Language Navigation",
+      "venue": "CVPR 2022 Oral",
+      "repo": "cshizhe/VLN-DUET",
+      "pdf": "https://openaccess.thecvf.com/content/CVPR2022/papers/Chen_Think_Global_Act_Local_Dual-Scale_Graph_Transformer_for_Vision-and-Language_Navigation_CVPR_2022_paper.pdf",
+      "benchmarks": [
+        "R2R",
+        "REVERIE",
+        "SOON"
+      ]
+    },
+    {
+      "id": "etpnav2024",
+      "title": "ETPNav: Evolving Topological Planning for Vision-Language Navigation in Continuous Environments",
+      "venue": "TPAMI, online 2024; volume 47(7), 2025",
+      "repo": "MarSaKi/ETPNav",
+      "pdf": "https://arxiv.org/pdf/2304.03047",
+      "benchmarks": [
+        "R2R-CE",
+        "RxR-CE"
+      ]
+    }
+  ]
+}
