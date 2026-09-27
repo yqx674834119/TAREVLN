@@ -7,7 +7,7 @@ import subprocess
 
 class OdometryProcess:
     def __init__(self, root, out, denied_directory, method='gicp', voxel_size=.1,
-                 initial_threshold=.5, fixed_threshold=None, prediction='constant_velocity'):
+                 initial_threshold=.5, fixed_threshold=None, prediction='constant_velocity', gicp_correspondence=.5):
         root, out = Path(root).resolve(), Path(out).resolve()
         out.mkdir(parents=True, exist_ok=True)
         ros, runtime = root.parent/'envs/ros', root.parent/'envs/odometry'
@@ -22,7 +22,8 @@ class OdometryProcess:
                    '--setenv', 'OMP_NUM_THREADS', '2', '--setenv', 'OPENBLAS_NUM_THREADS', '2',
                    str(runtime/'bin/python'), '-u', '/worker.py', '--deny-probe', str(denied_directory),
                    '--method', method, '--voxel-size', str(voxel_size),
-                   '--initial-threshold', str(initial_threshold), '--prediction', prediction]
+                   '--initial-threshold', str(initial_threshold), '--prediction', prediction,
+                   '--gicp-correspondence',str(gicp_correspondence)]
         if fixed_threshold is not None:
             command += ['--fixed-threshold', str(fixed_threshold)]
         self.log = (out/'worker.log').open('w')

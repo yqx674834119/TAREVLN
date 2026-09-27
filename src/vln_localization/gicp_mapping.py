@@ -6,8 +6,10 @@ import small_gicp
 
 
 class GICPMapping:
-    def __init__(self,voxel_size=.1,prediction='constant_velocity'):
+    def __init__(self,voxel_size=.1,prediction='constant_velocity',correspondence_m=.5):
         self.voxel_size=voxel_size
+        if not math.isfinite(correspondence_m) or correspondence_m<=0:raise ValueError('Invalid correspondence distance')
+        self.correspondence_m=correspondence_m
         if prediction not in ('constant_velocity','static'):raise ValueError('Invalid prediction')
         self.prediction=prediction
         self.last_pose=np.eye(4)
@@ -24,11 +26,13 @@ class GICPMapping:
             guess=self.last_pose@self.last_delta if self.prediction=='constant_velocity' else self.last_pose
             result=small_gicp.align(target,points,init_T_target_source=guess,
                 registration_type='GICP',downsampling_resolution=self.voxel_size,
-                max_correspondence_distance=.5,num_threads=2,max_iterations=50)
+                max_correspondence_distance=self.correspondence_m,num_threads=2,max_iterations=50)
             eigen=np.linalg.eigvalsh(result.H)
             condition=float(eigen[-1]/max(eigen[0],1e-12))
             self.diagnostics={'converged':bool(result.converged),'iterations':int(result.iterations),
-                              'inliers':int(result.num_inliers),'hessian_condition':condition}
+                              'inliers':int(result.num_inliers),'hessian_condition':condition,
+                              'gicp_cost_per_inlier':float(result.error/max(result.num_inliers,1)),
+                              'prediction_translation_correction_m':float(np.linalg.norm((np.linalg.inv(guess)@result.T_target_source)[:3,3]))}
             if not result.converged or result.num_inliers<100 or eigen[0]<=0 or condition>1e8:
                 raise ValueError('Unconverged, sparse, or ill-conditioned GICP registration')
             pose=result.T_target_source

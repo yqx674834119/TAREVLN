@@ -24,6 +24,7 @@ ap.add_argument("--spawn", type=float, nargs=3)
 ap.add_argument("--yaw", type=float, default=0.)
 ap.add_argument("--checkpoint", type=Path)
 ap.add_argument("--odometry", choices=["ideal", "gicp"], default="ideal")
+ap.add_argument("--gicp-correspondence",type=float,default=.5)
 ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="legacy11")
 ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT relay, e.g. http://127.0.0.1:18119")
 ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
@@ -37,7 +38,7 @@ out = ROOT / "data/sim/office/runs" / args.name
 out.mkdir(parents=True, exist_ok=False)
 report = {"status": "starting", "success": False, "policy": "SysNav native TARE + DeepSeek Flash vision task adapter",
           "robot": "articulated Go2 with recorded simulation-only checkpoint", "odometry": args.odometry,
-          "localization_control_ready": False, "physical_hardware_ready": False,
+          "gicp_correspondence_m":args.gicp_correspondence,"localization_control_ready": False, "physical_hardware_ready": False,
           "lidar_profile": args.lidar_profile,
           "api_proxy": args.api_proxy,
           "surface_geometry":args.surface_geometry,"sam_enabled":args.sam,"sam_gpu":args.sam_gpu if args.sam else None,
@@ -151,7 +152,7 @@ try:
     if not args.preview:
         worker = OfficeProcess(ROOT, out / "agent", stderr, geometry_only=args.geometry_only, task=args.task, api_proxy=args.api_proxy,sam_ipc=sam.ipc if sam else None,surface_geometry=args.surface_geometry)
     if args.odometry == 'gicp':
-        odometry = OdometryProcess(ROOT, out/'odometry', out)
+        odometry = OdometryProcess(ROOT, out/'odometry', out,gicp_correspondence=args.gicp_correspondence)
         odom_trace = (out/'odometry/poses.jsonl').open('w')
         # Public initialization: robot starts level, at nominal standing height.
         # Neither the initial world XY nor world yaw is supplied to navigation.

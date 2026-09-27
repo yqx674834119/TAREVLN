@@ -13,9 +13,10 @@ ap.add_argument('--initial-threshold',type=float,default=.5)
 ap.add_argument('--fixed-threshold',type=float)
 ap.add_argument('--method',choices=('kiss','gicp'),default='kiss')
 ap.add_argument('--prediction',choices=('constant_velocity','static'),default='constant_velocity')
+ap.add_argument('--gicp-correspondence',type=float,default=.5)
 args=ap.parse_args()
 if Path(args.deny_probe).exists():raise RuntimeError('Evaluator directory is visible to estimator')
-odometry=LidarOdometry(args.voxel_size,args.initial_threshold,args.fixed_threshold,args.method,args.prediction)
+odometry=LidarOdometry(args.voxel_size,args.initial_threshold,args.fixed_threshold,args.method,args.prediction,args.gicp_correspondence)
 print(json.dumps({'ready':True,'denied_directory_visible':False,'version':importlib.metadata.version('small-gicp' if args.method=='gicp' else 'kiss-icp'),
                   'config':odometry.config}),flush=True)
 for line in sys.stdin:

@@ -25,6 +25,7 @@ ap.add_argument('--raw-scans',action='store_true',help='Use recorded rigid-mount
 ap.add_argument('--range-noise-std',type=float,default=0.,help='Synthetic radial Gaussian noise in metres; not a calibrated sensor model')
 ap.add_argument('--point-dropout',type=float,default=0.)
 ap.add_argument('--seed',type=int,default=41)
+ap.add_argument('--gicp-correspondence',type=float,default=.5)
 args=ap.parse_args()
 if args.range_noise_std<0 or not 0<=args.point_dropout<1:ap.error('Invalid synthetic corruption settings')
 if (args.range_noise_std or args.point_dropout) and not args.raw_scans:ap.error('Stress tests require raw base-frame scans')
@@ -39,7 +40,7 @@ for p in sources:shutil.copyfile(p,archive/p.name)
 (archive/'sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},indent=2))
 sys.path.insert(0,str(root/'src'))
 from vln_localization.process import OdometryProcess
-child=OdometryProcess(root,args.out,args.run,args.method,args.voxel_size,args.initial_threshold,args.fixed_threshold,args.prediction)
+child=OdometryProcess(root,args.out,args.run,args.method,args.voxel_size,args.initial_threshold,args.fixed_threshold,args.prediction,args.gicp_correspondence)
 def rotation(q):
     w,x,y,z=q
     return np.array([[1-2*(y*y+z*z),2*(x*y-z*w),2*(x*z+y*w)],
@@ -76,7 +77,7 @@ try:
     good=[r for r in rows if r['estimate'].get('valid')]
     errors=np.array([r['translation_error_m'] for r in good])
     times=np.array([r['estimate']['processing_seconds'] for r in good])
-    report={'method':args.method,'prediction':args.prediction,'raw_scans':args.raw_scans,
+    report={'gicp_correspondence_m':args.gicp_correspondence,'voxel_size_m':args.voxel_size,'method':args.method,'prediction':args.prediction,'raw_scans':args.raw_scans,
             'synthetic_corruption':{'radial_noise_std_m':args.range_noise_std,'point_dropout':args.point_dropout,'seed':args.seed,
                                     'scope':'assumed independent noise/dropout, no hardware calibration or scan motion distortion'},
             'scope':'isolated LiDAR-only odometry replay of virtual scans; not physical SLAM or navigation',

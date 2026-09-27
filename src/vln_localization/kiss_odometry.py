@@ -11,7 +11,7 @@ from kiss_icp.kiss_icp import KissICP
 
 
 class LidarOdometry:
-    def __init__(self,voxel_size=.1,initial_threshold=.5,fixed_threshold=None,method='kiss',prediction='constant_velocity'):
+    def __init__(self,voxel_size=.1,initial_threshold=.5,fixed_threshold=None,method='kiss',prediction='constant_velocity',gicp_correspondence=.5):
         cfg=load_config(None)
         cfg.data.min_range=.4
         cfg.data.max_range=11.
@@ -25,8 +25,8 @@ class LidarOdometry:
         self.config['method']=method
         if method=='gicp':
             from .gicp_mapping import GICPMapping
-            self.icp=GICPMapping(voxel_size,prediction)
-            self.config['gicp']={'keyframes':10,'correspondence_m':.5,'max_iterations':50,'threads':2,'prediction':prediction}
+            self.icp=GICPMapping(voxel_size,prediction,gicp_correspondence)
+            self.config['gicp']={'keyframes':10,'correspondence_m':gicp_correspondence,'max_iterations':50,'threads':2,'prediction':prediction}
         elif method=='kiss':self.icp=KissICP(cfg)
         else:raise ValueError('Unknown odometry method')
         self.last_time=None
