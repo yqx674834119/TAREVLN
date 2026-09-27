@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "asset": "Isaac/Environments/Office/office.usd",
+  "scope": "Scene-author evaluator fixture. Never mount into the policy process.",
+  "tasks": {
+    "meeting": {
+      "start_xyz": [
+        -7,
+        30,
+        0.4
+      ],
+      "goal_rectangle": [
+        -4.2,
+        36.3,
+        5.3,
+        43.2
+      ],
+      "goal_rectangles": [
+        [
+          -4.2,
+          36.3,
+          5.3,
+          43.2
+        ],
+        [
+          -0.6,
+          13.2,
+          5.3,
+          23.1
+        ],
+        [
+          -0.5,
+          29.0,
+          5.3,
+          34.8
+        ]
+      ],
+      "note": "Three meeting areas verified in rendered authoring views (north, south, small); each has a shared table, chairs, and wall display. Public-floor rectangles are evaluator-only, not policy input."
+    },
+    "lounge": {
+      "task": "lounge",
+      "start_xyz": [
+        -11.0,
+        29.5,
+        0.4
+      ],
+      "goal_rectangle": [
+        -8.8,
+        30.0,
+        -6.4,
+        33.5
+      ],
+      "goal_rectangles": [
+        [
+          -8.8,
+          30.0,
+          -6.4,
+          33.5
+        ]
+      ],
+      "goal_z_range": [
+        0.05,
+        0.7
+      ],
+      "authoring_evidence": "Office asset inventory: two upholstered armchairs at x -6.23..-5.12 / y 29.78..33.30, small table x -5.82..-5.22 / y 30.89..32.10, wall TV x -8.76..-7.32 / y 33.99..34.29. Free floor west of the armchairs; region fixed before first lounge run."
+    }
+  }
+}

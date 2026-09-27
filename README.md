@@ -70,3 +70,5 @@ OMNI_KIT_ACCEPT_EULA=YES scripts/with_gpu_compat.sh \
 ```
 
 This lightweight stage diagnostic is separate from the P1 route test. Downloads can be prepared in the background with `scripts/install_p1_components.sh`; it does not launch Isaac or accept a license automatically.
+
+单场景 Office 的实际运行结果、失败案例和复核证据见 [实测报告](docs/office-results.md)，启动方式见 [运行说明](docs/office-runbook.md)。

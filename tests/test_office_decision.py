@@ -1,10 +1,13 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from vln_policy.office_decision import visual_decision
 
 
 class VisualDecisionTests(unittest.TestCase):
     def setUp(self):
+        grounding = patch('vln_policy.office_decision.ground_visual_anchor', return_value={'valid': True, 'anchor_world_xyz': [1,2,.4]})
+        grounding.start()
+        self.addCleanup(grounding.stop)
         self.context = {"candidates": [{"id": 3, "xyz": [1.,2.,.3]}],
                         "candidate_view_ids": {"front": [3], "left": []}}
         self.valid = {"action": "inspect", "candidate_id": 3, "selected_view": "front",

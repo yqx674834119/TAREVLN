@@ -30,6 +30,9 @@ def confirmed_from_two_positions(previous, current):
     """Distinct recent camera poses, not duplicate frames or camera rotation."""
     dt = current["time"] - previous["time"]
     distance = math.dist(current["position"][:2], previous["position"][:2])
+    if previous.get("anchor_world_xyz") is not None and current.get("anchor_world_xyz") is not None:
+        if math.dist(previous["anchor_world_xyz"], current["anchor_world_xyz"]) > 1.5:
+            return False
     return 0 < dt <= 60 and .6 <= distance <= 4.
 
 

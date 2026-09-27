@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 import time
 import traceback
+import zlib
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--name", required=True)
@@ -35,7 +36,7 @@ archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sandbox.py", "sim/go2_policy.py",
-                 "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "config/office-ros.yaml",
+                 "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch"]:
     file = ROOT / relative
     if file.exists():
@@ -177,7 +178,9 @@ try:
                 depth = camera.get_depth()
                 camera_time = camera.get_current_frame().get("rendering_time")
                 np.savez_compressed(out / f"depth_{step:07d}_{index}.npz", depth=depth, time=t, camera_time=camera_time, position=cp, quaternion=cq)
+                depth_mm = (np.clip(np.nan_to_num(depth, nan=0., posinf=0., neginf=0.), 0, 65.535)*1000).astype('<u2')
                 views.append({"label": ["front","left","rear","right"][index], "jpeg": base64.b64encode(data.getvalue()).decode(),
+                              "depth_mm": base64.b64encode(zlib.compress(depth_mm.tobytes())).decode(), "image_size": [640,480],
                               "rotation": quat_to_rot_matrix(cq).tolist(), "position": cp.tolist(), "intrinsics": [float(k[0,0]),float(k[1,1]),float(k[0,2]),float(k[1,2])]})
                 samples += 1
             obs["views"] = views

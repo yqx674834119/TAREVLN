@@ -62,4 +62,8 @@ for prim in office.GetPrim().GetChildren():
         inventory.append({"name": prim.GetName(), "min": list(bound.GetMin()), "max": list(bound.GetMax())})
 (out / "asset-inventory.json").write_text(json.dumps(inventory, indent=2))
 (out / "build.json").write_text(json.dumps({"asset": manifest["scene"], "dependencies_complete": manifest["complete"], "collision_meshes": count, "static_mesh_collisions": True}, indent=2))
+evaluation = json.loads((root / "sim/fixtures/office-evaluation.json").read_text())
+for task, oracle in evaluation["tasks"].items():
+    name = "oracle.json" if task == "meeting" else f"oracle_{task}.json"
+    (out / name).write_text(json.dumps(oracle, indent=2))
 print(json.dumps({"collision_meshes": count, "inventory_items": len(inventory), "complete": manifest["complete"]}))

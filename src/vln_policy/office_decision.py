@@ -1,10 +1,11 @@
 """Ground VLM choices and independently verify claimed arrival."""
 from .office_contract import validate_decision
 from .office_tasks import TASKS
+from .office_grounding import ground_visual_anchor
 import math
 
 
-def visual_decision(api, prompt, images, context):
+def visual_decision(api, prompt, images, context, views=()):
     result = api.ask(prompt, images, {"purpose": "navigation_decision", **context})
     try:
         validate_decision(result, context["candidates"], context["candidate_view_ids"])
@@ -25,8 +26,13 @@ def visual_decision(api, prompt, images, context):
         # answer. This is still fallible VLM evidence, independently scored by
         # the private evaluator after the robot requests a stop.
         task = TASKS[context.get("task", "meeting")]
-        check = api.ask("Independently inspect only these current images. Do not infer hidden objects. Return JSON with boolean fields " + ", ".join(task["features"]) + ", inside_area, confidence (number 0 to 1), and short evidence. The requested area contains " + task["criteria"] + ". Ceiling lights, windows, and small PC monitors are not wall displays. " + task["arrival"] + " Judge CURRENT presence independently of any second-view requirement; a separate controller handles repeat observations. Do not propose movement.", images,
-                        {"purpose": "arrival_verification", **context})
+        verification_prompt = "Independently inspect only these current images. Do not infer hidden objects. Return JSON with boolean fields " + ", ".join(task["features"]) + ", inside_area, confidence (number 0 to 1), and short evidence. Also return anchor_view (front|left|rear|right) and anchor_pixel_xy [u,v]: the pixel at the centre of the VISIBLE TABLE TOP belonging to the requested furniture group, in the named 640 x 480 image. Coordinates are actual pixels (u: 0..639, v: 0..479), not normalized. Return null if that table is not visible. The requested area contains " + task["criteria"] + ". Ceiling lights, windows, and small PC monitors are not wall displays. " + task["arrival"] + " Judge CURRENT presence independently of any second-view requirement; a separate controller handles repeat observations. Do not propose movement."
+        check = api.ask(verification_prompt, images, {"purpose": "arrival_verification", **context})
+        grounding = ground_visual_anchor(check, views, context.get("position", []))
+        if check.get("inside_area") is True and not grounding["valid"] and grounding["reason"] != "observed furniture too far":
+            feedback = "\nThe RGB-D geometry rejected the proposed table pixel: " + str(grounding) + ". Recheck the current image and point to a visible TABLE TOP surface, not the floor, wall, or table legs. Use actual 640 x 480 pixel coordinates. If no tabletop is visible, return null. Return the complete JSON again."
+            check = api.ask(verification_prompt + feedback, images, {"purpose": "depth_anchor_repair", **context})
+            grounding = ground_visual_anchor(check, views, context.get("position", []))
         for field in [*task["features"], "inside_area"]:
             if type(check.get(field)) is not bool:
                 raise ValueError("Invalid visual verification result")
@@ -37,7 +43,8 @@ def visual_decision(api, prompt, images, context):
         result["confidence"] = confidence
         features = all(check[k] for k in task["features"])
         result["target_visible"] = features
-        result["inside_target_area"] = features and check["inside_area"]
+        result["grounding"] = grounding
+        result["inside_target_area"] = features and check["inside_area"] and grounding["valid"]
         if result["action"] == "confirm" and not result["inside_target_area"]:
             result["action"] = "explore"
             result["reason"] = "Fresh visual verification rejected arrival: " + str(check.get("evidence", ""))

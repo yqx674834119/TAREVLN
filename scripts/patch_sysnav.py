@@ -52,18 +52,23 @@ s = s.replace(needle, """void SensorCoveragePlanner3D::PublishMissionCandidates(
   result["time"] = this->now().seconds();
   result["candidates"] = json::array();
   Eigen::Vector3d start(robot_position_.x, robot_position_.y, robot_position_.z);
-  std::vector<int> bins(12, -1);
-  std::vector<double> scores(12, 1e9);
+  // Near observation positions are needed for a second confirming view and
+  // door approaches; one 2.8 m target per bearing skips these useful poses.
+  std::vector<int> bins(24, -1);
+  std::vector<double> scores(24, 1e9);
   for (int ind : viewpoint_manager_->GetViewPointCandidateIndices()) {
     auto pos = viewpoint_manager_->GetViewPointPosition(ind);
     Eigen::Vector3d delta(pos.x-start.x(), pos.y-start.y(), 0);
     double dist = delta.norm();
-    if (dist < 1.0 || dist > 4.5) continue;
-    int bin = std::min(11, std::max(0, int((atan2(delta.y(), delta.x()) + M_PI) / (2*M_PI) * 12)));
-    double score = std::abs(dist-2.8);
-    if (score < scores[bin]) { scores[bin] = score; bins[bin] = ind; }
+    if (dist < 0.8 || dist > 4.5) continue;
+    int bearing = std::min(11, std::max(0, int((atan2(delta.y(), delta.x()) + M_PI) / (2*M_PI) * 12)));
+    for (int ring=0; ring<2; ++ring) {
+      int bin = bearing + 12*ring;
+      double score = std::abs(dist - (ring == 0 ? 1.2 : 2.8));
+      if (score < scores[bin]) { scores[bin] = score; bins[bin] = ind; }
+    }
   }
-  for (int i=0; i<12; ++i) {
+  for (int i=0; i<24; ++i) {
     if (bins[i] < 0) continue;
     auto pos = viewpoint_manager_->GetViewPointPosition(bins[i]);
     Eigen::Vector3d goal(pos.x, pos.y, pos.z);
