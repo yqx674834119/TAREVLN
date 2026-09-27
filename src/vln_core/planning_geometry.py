@@ -13,7 +13,12 @@ def map_points(points,frame,pose):
     a=np.asarray(points,dtype=float).reshape(-1,3)
     if frame in ('map','/map'):return a
     if frame in ('vehicle','/vehicle') and pose is not None:
-        return a@rotation_wxyz(pose['orientation']).T+pose['position']
+        # SysNav localPlanner explicitly removes yaw only, even on a tilted Go2.
+        rotation=rotation_wxyz(pose['orientation'])
+        yaw=np.arctan2(rotation[1,0],rotation[0,0])
+        planar=np.array([[np.cos(yaw),-np.sin(yaw),0.],
+                         [np.sin(yaw),np.cos(yaw),0.],[0.,0.,1.]])
+        return a@planar.T+pose['position']
     raise ValueError('Missing pose or unsupported planner frame: '+frame)
 
 

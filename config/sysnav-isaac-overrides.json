@@ -1,0 +1,88 @@
+{
+  "localPlanner": {
+    "autonomyMode": {
+      "value": true,
+      "reason": "The dashboard starts autonomous simulation tasks instead of a physical joystick."
+    },
+    "sensorOffsetX": {
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    "sensorOffsetY": {
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    "vehicleLength": {
+      "value": 0.7,
+      "reason": "Preserve the simulated articulated Go2 swept footprint including its legs."
+    },
+    "vehicleWidth": {
+      "value": 0.6,
+      "reason": "Preserve the simulated articulated Go2 swept footprint including its legs."
+    },
+    "maxSpeed": {
+      "value": 0.45,
+      "reason": "Validated simulation-only Go2 velocity controller envelope."
+    },
+    "autonomySpeed": {
+      "value": 0.35,
+      "reason": "Validated simulation-only Go2 velocity controller envelope."
+    }
+  },
+  "pathFollower": {
+    "realRobot": {
+      "value": false,
+      "reason": "Isaac-only execution; never opens or commands physical hardware."
+    },
+    "autonomyMode": {
+      "value": true,
+      "reason": "The dashboard replaces joystick task activation."
+    },
+    "sensorOffsetX": {
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    "sensorOffsetY": {
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    "maxSpeed": {
+      "value": 0.45,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    "autonomySpeed": {
+      "value": 0.35,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    "maxAccel": {
+      "value": 0.6,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    "maxYawRate": {
+      "value": 40.0,
+      "reason": "Go2 controller is validated at up to 0.7 rad/s, not the official fast-robot rate."
+    }
+  },
+  "terrainAnalysisExt": {
+    "terrainUnderVehicle": {
+      "value": -0.78,
+      "reason": "Floor seed is below the physical LiDAR origin: standing Go2 base 0.33 m plus 0.45 m mount."
+    }
+  },
+  "vlm_node": {
+    "platform": {
+      "value": "mecanum_sim",
+      "reason": "Select the calibrated simulated panorama projection shared with the mapper, not the physical mecanum camera."
+    },
+    "log_dir": {
+      "value": "logs",
+      "reason": "Each experiment has an isolated output directory."
+    }
+  },
+  "semantic_mapping_node": {
+    "save_png": {
+      "value": true,
+      "reason": "Retain perception evidence for this diagnostic; does not change mapping decisions."
+    }
+  }
+}

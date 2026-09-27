@@ -1,5 +1,9 @@
 # 跨房间测试、MP3D Isaac 迁移与 TARE 可视化
 
+> 2026-09-28 更正：这是系统对齐前的历史结果，不能作为已验证等价的上游基线。
+> 当前源码、参数、传感器契约修复及物理可达性证据见 [系统对齐审查](sysnav-system-parity.md)。
+> 旧房间数含累计历史 ID；旧解析器额外词表约束已移除，不能归因于原生自由字符串解析器。
+
 本轮分支为 `codex/mp3d-isaac-visualization`。继续使用完整原生 SysNav 仿真链、
 DeepSeek `deepseek-flash`、GICP 和关节驱动的 Go2。实体硬件未启动。
 

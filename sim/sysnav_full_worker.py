@@ -22,8 +22,9 @@ from cv_bridge import CvBridge
 from tare_planner.msg import (RoomNodeList, ObjectNodeList, DetectionResult, RoomType,
     NavigationQuery, VlmAnswer, TargetObjectInstruction, TargetObject, ViewpointRep,
     TargetObjectWithSpatial, ObjectType)
-from office_ros_worker import Bridge as SensorBridge
+from sysnav_sensor_bridge import Bridge as SensorBridge
 from planning_recorder import PlanningRecorder
+from vln_core.sysnav_sensor_contract import SensorObservationAdapter
 from vln_policy.sysnav_tasks import TASKS as PUBLIC_TASKS
 TASKS = {key:value[1] for key,value in PUBLIC_TASKS.items()}
 
@@ -39,6 +40,7 @@ class Bridge(SensorBridge):
         self.status, self.instruction = {}, None
         self.objects, self.rooms = {}, {}
         self.planning=PlanningRecorder(self,output)
+        self.sensor_adapter=SensorObservationAdapter()
         for topic, kind in [
             ('/room_nodes_list',RoomNodeList), ('/object_nodes_list',ObjectNodeList),
             ('/detection_result',DetectionResult), ('/room_type_query',RoomType),
@@ -62,8 +64,10 @@ class Bridge(SensorBridge):
             self.instruction=msg.target_object or None
             row.update(target=msg.target_object,room=msg.room_condition,attribute=msg.attribute_condition,spatial=msg.spatial_condition)
         elif topic=='/room_nodes_list':
-            for node in msg.nodes:
-                self.rooms[node.id]={'id':node.id,'area':node.area,'neighbors':list(node.neighbors)}
+            # Native RoomNodeList is a full snapshot, not append-only history.
+            self.rooms={node.id:{'id':node.id,'area':node.area,'neighbors':list(node.neighbors),
+                'connected':node.is_connected,'centroid':[node.centroid.x,node.centroid.y,node.centroid.z]}
+                for node in msg.nodes}
             row['rooms']=list(self.rooms.values())
         elif topic=='/object_nodes_list':
             for node in msg.nodes:
@@ -78,16 +82,17 @@ class Bridge(SensorBridge):
         elif isinstance(msg,TargetObject):
             row.update(id=msg.object_id,label=msg.object_label,is_target=msg.is_target)
         elif isinstance(msg,RoomType):
-            row.update(id=msg.room_id,label=msg.room_type)
+            row.update(id=msg.room_id,label=msg.room_type,anchor=[msg.anchor_point.x,msg.anchor_point.y,msg.anchor_point.z],in_room=msg.in_room)
         elif isinstance(msg,NavigationQuery):
             row['query']=json.loads(msg.json)
         elif isinstance(msg,VlmAnswer):
-            row.update(room_id=msg.room_id)
+            row.update(room_id=msg.room_id,answer_type=msg.answer_type,anchor=[msg.anchor_point.x,msg.anchor_point.y,msg.anchor_point.z])
         elif isinstance(msg,ViewpointRep):
             row.update(viewpoint_id=msg.viewpoint_id)
         self.events.write(json.dumps(row)+'\n')
 
     def ingest(self,obs):
+        obs=self.sensor_adapter.convert(obs)
         self.planning.observe(obs)
         stamp=super().ingest(obs)
         if 'panorama' in obs:
@@ -107,6 +112,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--source',type=Path,required=True)
     ap.add_argument('--config',type=Path,required=True)
+    ap.add_argument('--boundary',type=Path,required=True)
     ap.add_argument('--output',type=Path,required=True)
     ap.add_argument('--task',choices=TASKS,default='lounge')
     ap.add_argument('--instruction',help='Public language instruction only; no goal coordinates')
@@ -122,7 +128,8 @@ def main():
     bridge=Bridge(args.output)
     threading.Thread(target=rclpy.spin,args=(bridge,),daemon=True).start()
     try:
-        specs=[('tare_planner','tare_planner_node'),('tare_planner','room_segmentation'),
+        specs=[('sensor_scan_generation','sensorScanGeneration'),('tare_planner','navigationBoundary'),
+               ('tare_planner','tare_planner_node'),('tare_planner','room_segmentation'),
                ('terrain_analysis','terrainAnalysis'),('terrain_analysis_ext','terrainAnalysisExt'),
                ('local_planner','localPlanner'),('local_planner','pathFollower'),
                ('semantic_mapping','detection_node'),('semantic_mapping','semantic_mapping_node'),
@@ -141,8 +148,11 @@ def main():
                 cmd+=['-r','__node:=room_segmentation']
             if executable=='localPlanner':
                 cmd+=['-p','pathFolder:='+str(args.source/'src/base_autonomy/local_planner/paths')]
+            if executable=='navigationBoundary':
+                cmd+=['-p','boundary_file_dir:='+str(args.boundary)]
             children.append(subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT))
         sent=False
+        runtime_saved=False
         trace=(args.output/'bridge.jsonl').open('w',buffering=1)
         for line in sys.stdin:
             obs=json.loads(line);bridge.ingest(obs)
@@ -154,6 +164,10 @@ def main():
             ready={'vlm_node','semantic_mapping_node','detection_node'}.issubset(nodes)
             if ready and not sent and bridge.counts['detection_result']>0:
                 bridge.keyboard.publish(String(data=instruction));sent=True
+            if sent and not runtime_saved and bridge.counts['sensor_scans']>0:
+                from sysnav_runtime_audit import capture_runtime
+                capture_runtime(bridge,args.output,args.source,specs,children)
+                runtime_saved=True
             stop=bool(bridge.status.get('stop') and 0<=obs['time']-bridge.status.get('time',-100)<2)
             command=list(bridge.command)
             reason='native_sysnav_path_follower'

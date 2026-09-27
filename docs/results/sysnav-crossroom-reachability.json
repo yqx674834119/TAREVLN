@@ -1,0 +1,100 @@
+{
+  "scope": "evaluator-only oracle route control; NOT SysNav or autonomous success",
+  "status": "completed",
+  "physics_route_passed": true,
+  "oracle_grounding": true,
+  "radius_m": 0.4,
+  "grid_resolution_m": 0.05,
+  "scene_sha256": "300cb572e366c10b79ae79e3feed93d9c7b4229c901c853efe4cc179da31370e",
+  "checkpoint_sha256": "59ed91b571fb821efc8ef8d4a4bb6eb5367e6ad49b29181e2c3d030eba18951a",
+  "grid_sha256": "330d7b41893734b11cf523aaf3995afdc9a70c7b72c9fa5fd235243aa4dc1aea",
+  "source_sha256": "215cba9ea4389f366b0280b72d912032d09a5b13be16bc55cd1fb667160b5265",
+  "task": "meeting_crossroom",
+  "start": [
+    -11.0,
+    29.5,
+    0.4
+  ],
+  "goals": [
+    {
+      "prim": "/World/Office/SM_TV_for_wall2",
+      "geometric_stop_cells": 546,
+      "visible_stop_cells": 546,
+      "reachable": true,
+      "length_m": 19.003300858899195,
+      "minimum_center_clearance_m": 0.45000001788139343
+    },
+    {
+      "prim": "/World/Office/SM_TV_for_wall5",
+      "geometric_stop_cells": 762,
+      "visible_stop_cells": 762,
+      "reachable": true,
+      "length_m": 13.653910524340072,
+      "minimum_center_clearance_m": 0.45000001788139343
+    },
+    {
+      "prim": "/World/Office/SM_TV_for_wall_5",
+      "geometric_stop_cells": 743,
+      "visible_stop_cells": 743,
+      "reachable": true,
+      "length_m": 15.898885271170666,
+      "minimum_center_clearance_m": 0.45000001788139343
+    }
+  ],
+  "chosen_target": "/World/Office/SM_TV_for_wall5",
+  "planned_endpoint": [
+    -0.3999999999999986,
+    33.6
+  ],
+  "route_floor_support": {
+    "samples": 58,
+    "missing": 0,
+    "minimum": 5.960464477539063e-08,
+    "maximum": 0.009972156956791878
+  },
+  "stop_dwell": 1.0999999999999999,
+  "goal_evaluation": {
+    "passed": true,
+    "targets": [
+      {
+        "prim": "/World/Office/SM_TV_for_wall5",
+        "footprint_distance_m": 1.814362433912296,
+        "grounding_error_m": 0.0,
+        "visible": true,
+        "inside_target_room": true,
+        "passed": true
+      }
+    ],
+    "predicted_world_xyz": [
+      0.6140000072856606,
+      35.35884338464352,
+      1.9132963595500119
+    ]
+  },
+  "simulation_seconds": 46.914998951368034,
+  "wall_seconds": 54.70732908882201,
+  "final_position": [
+    -0.4376566410064697,
+    33.53545379638672,
+    0.27610480785369873
+  ],
+  "distance_m": 13.363149498123631,
+  "minimum_up_dot": 0.9930751548805706,
+  "nonfoot_contact_pairs": [
+    "/World/Go2/FL_calf/collisions/mesh_2 | /World/Office/SM_Floor_6m37/SM_Floor_6m",
+    "/World/Go2/FR_calf/collisions/mesh_2 | /World/Office/SM_Floor_6m37/SM_Floor_6m",
+    "/World/Go2/RR_calf/collisions/mesh_2 | /World/Office/SM_Floor_6m37/SM_Floor_6m",
+    "/World/Go2/RL_calf/collisions/mesh_2 | /World/Office/SM_Floor_6m37/SM_Floor_6m",
+    "/World/Go2/FL_calf/collisions/mesh_2 | /World/Office/GroundPlane/CollisionPlane",
+    "/World/Go2/FR_calf/collisions/mesh_2 | /World/Office/GroundPlane/CollisionPlane",
+    "/World/Go2/RR_calf/collisions/mesh_2 | /World/Office/GroundPlane/CollisionPlane",
+    "/World/Go2/RL_calf/collisions/mesh_2 | /World/Office/GroundPlane/CollisionPlane"
+  ],
+  "nonfoot_physical_contact_pairs": [],
+  "contact_definition": {
+    "impulse_threshold_ns": 1e-05,
+    "touch_separation_m": 0.0005,
+    "rule": "physical if impulse norm exceeds threshold OR separation is at most touch tolerance"
+  },
+  "contact_quality_passed": true
+}

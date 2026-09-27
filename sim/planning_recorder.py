@@ -6,7 +6,7 @@ import threading
 import numpy as np
 from geometry_msgs.msg import PointStamped
 from nav_msgs.msg import Path as ROSPath
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, Image
 from vln_core.planning_geometry import map_points,bounded_cloud
 
 
@@ -33,13 +33,23 @@ class PlanningRecorder:
         self.index=(self.output/'index.jsonl').open('w',buffering=1)
         self.poses=deque(maxlen=150);self.layers={};self.lock=threading.RLock()
         self.last=-100.;self.rejected=0
+        self.room_mask=None;self.mask_last_saved=-1.
         topics={'free':'/freespace_cloud','candidates':'/viewpoint_vis_cloud',
-                'obstacles':'/collision_cloud','free_paths':'/free_paths'}
+                'obstacles':'/collision_cloud','free_paths':'/free_paths',
+                'doors':'/door_cloud','room_map':'/room_map_cloud'}
         for key,topic in topics.items():
             node.create_subscription(PointCloud2,topic,lambda msg,k=key,t=topic:self.cloud(k,t,msg),2)
         for key,topic in {'path':'/path','coverage_path':'/local_path'}.items():
             node.create_subscription(ROSPath,topic,lambda msg,k=key,t=topic:self.path(k,t,msg),2)
         node.create_subscription(PointStamped,'/way_point',self.waypoint,5)
+        node.create_subscription(Image,'/room_mask',self.mask,2)
+
+    def mask(self,msg):
+        if msg.encoding!='32SC1':
+            return
+        dtype='>i4' if msg.is_bigendian else '<i4'
+        a=np.ndarray((msg.height,msg.width),dtype=dtype,buffer=bytes(msg.data),strides=(msg.step,4)).copy()
+        with self.lock:self.room_mask=(stamp(msg),a)
 
     def pose_for(self,t):
         with self.lock:
@@ -82,6 +92,12 @@ class PlanningRecorder:
             # A source layer must never be newer than the recorded robot clock.
             layers={k:v for k,v in self.layers.items() if v['time']<=t+.001 and t-v['time']<3.}
             row=dict(time=t,frame='map',robot=self.poses[-1],layers=layers,rejected_frames=self.rejected)
+            if self.room_mask and self.mask_last_saved<self.room_mask[0]<=t+.001:
+                mask_t,mask=self.room_mask
+                mask_name=f'rooms-{int(mask_t*1000):010d}.npz'
+                np.savez_compressed(self.output/mask_name,mask=mask,time=mask_t)
+                self.mask_last_saved=mask_t
+                row['room_mask_file']=mask_name
             name=f'plan-{int(t*1000):010d}.json'
             (self.output/name).write_text(json.dumps(row,separators=(',',':')))
             self.index.write(json.dumps(dict(time=t,file=name,robot=row['robot'],

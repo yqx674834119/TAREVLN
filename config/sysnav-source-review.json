@@ -1,0 +1,69 @@
+{
+  "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
+  "reviewed_changes": {
+    "src/exploration_planner/tare_planner/include/representation/representation.h": {
+      "patch_sha256": "605935237e981db3d6896c20e2afef4b17a37683962af8960175faa91bcd5881",
+      "reason": "Humble cv_bridge header compatibility only"
+    },
+    "src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h": {
+      "patch_sha256": "65a72006c6f70fd821387f9fecebd8241200f777bb1ff7e5be279d953aca09ca",
+      "reason": "Humble cv_bridge header compatibility only"
+    },
+    "src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h": {
+      "patch_sha256": "706b52010ade34ae71de267048d00af8d78f568af07a3eda2f8682b32a628e7c",
+      "reason": "Humble cv_bridge header compatibility only"
+    },
+    "src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp": {
+      "patch_sha256": "fc44e626ec1886f80dfe013afc5633a9002074784381c9ce9559b374f805eb85",
+      "reason": "Empty/out-of-bounds mask memory guards; retained corrective patch"
+    },
+    "src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp": {
+      "patch_sha256": "2b494470b91f19b1155784722f685bf86c3aa60a3c8de4a518699fc468255e91",
+      "reason": "Shrinking random-sample queue bounds correction; retained upstream-bug correction, not bitwise equivalence"
+    },
+    "src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp": {
+      "patch_sha256": "e1e8073a5c5f24bc6ce6ec71c8210ec8d78b32f76e3d4a7285b7e725eee5c243",
+      "reason": "Calibrated camera extrinsics, zero-clock startup guard and read-only status; official 12 m initial waypoint restored"
+    },
+    "src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp": {
+      "patch_sha256": "59b6e8d419ee90c0c04252101d144b4507991cc468e145ba2a51e359f8d0053a",
+      "reason": "Empty room-mask startup guard only"
+    },
+    "src/semantic_mapping/semantic_mapping/cloud_image_fusion.py": {
+      "patch_sha256": "5cb779198595807b3b6047bf62772e39e387a0097a5859117b4b630e8a53d4c2",
+      "reason": "Actual camera extrinsic and reject out-of-FOV scan pixels"
+    },
+    "src/semantic_mapping/semantic_mapping/detection_node.py": {
+      "patch_sha256": "355cac10a1376446d3605cae1306d4df1fec5bd814df21c4e836f86a55515725",
+      "reason": "Unique ROS node name, portable YOLOE backend, BGR input contract and preserve evidence"
+    },
+    "src/semantic_mapping/semantic_mapping/semantic_map_new.py": {
+      "patch_sha256": "97b0d6f59d307494aa6271d12b92253b3a5b170d341fc9f1d447a4f053750961",
+      "reason": "Correct original ObjectNodeList/bool/array ROS message contract; remove unused import"
+    },
+    "src/semantic_mapping/semantic_mapping/semantic_mapping_node.py": {
+      "patch_sha256": "6ffd75dfc0fd78c5e8c718ee322a6c09734fb5faaed05011c5f5e6d44745bce4",
+      "reason": "SAM asset path, RGB input contract, numeric message cast and preserve evidence"
+    },
+    "src/semantic_mapping/semantic_mapping/utils.py": {
+      "patch_sha256": "e4eef1ca22483d7d8d67eec9dc825784e519e38683bc51b12ed2092f383485bc",
+      "reason": "Remove unused spaCy import"
+    },
+    "src/vlm_node/vlm_node/constants.py": {
+      "patch_sha256": "bc27aae58c3876b728d809954a5f9fed28a1f06d14570a6c93746a29b85dbdb0",
+      "reason": "Requested DeepSeek API provider"
+    },
+    "src/vlm_node/vlm_node/deepseek_client.py": {
+      "patch_sha256": "84c9453f7d3c2c9fbbe03a546257e1fb56518459df342a8a63ab47be74ae3066",
+      "reason": "Requested DeepSeek structured transport, budget and evidence log"
+    },
+    "src/vlm_node/vlm_node/utils.py": {
+      "patch_sha256": "1dcd3a9a1022add30ab99b2a1e9363ed4f8b1e8ce80133444cca81031a5d9ca7",
+      "reason": "Calibrated simulated camera extrinsic"
+    },
+    "src/vlm_node/vlm_node/vlm_reasoning_node.py": {
+      "patch_sha256": "fda9ed587604f3f33a126533d3e78257f7d130f4eeff89d6b91ae59ffa37b5aa",
+      "reason": "Provider transport, concise public decision summaries, float ROS overlay and preserve evidence; original free-string instruction fields restored"
+    }
+  }
+}

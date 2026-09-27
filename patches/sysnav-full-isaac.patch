@@ -1,7 +1,7 @@
 From de4f6d08f7dda77ecde14dc7c88040648d4e3b66 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:32:16 +0800
-Subject: [PATCH 1/3] Port native SysNav semantics to Isaac panoramic sensors
+Subject: [PATCH 1/5] Port native SysNav semantics to Isaac panoramic sensors
  and DeepSeek
 
 ---
@@ -684,7 +684,7 @@ index 7ae46d3..d6428f8 100644
 From 8496d75ba92b200979b2cfb445155c1cfd417420 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:45:40 +0800
-Subject: [PATCH 2/3] Fix ROS object identifiers and constrain task
+Subject: [PATCH 2/5] Fix ROS object identifiers and constrain task
  decomposition to detector vocabulary
 
 ---
@@ -803,7 +803,7 @@ index d6428f8..152db0a 100644
 From 13f567ae1fdcbb661dd43301d6efc9d6fd3ac7e5 Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 02:34:46 +0800
-Subject: [PATCH 3/3] Use floating-point font size in ROS overlay messages
+Subject: [PATCH 3/5] Use floating-point font size in ROS overlay messages
 
 ---
  src/vlm_node/vlm_node/vlm_reasoning_node.py | 4 ++--
@@ -831,6 +831,144 @@ index 152db0a..0a3d63e 100644
                  self.text_overlay_publisher.publish(clear_msg)
  
          threading.Timer(duration, clear_text).start()
+-- 
+2.55.0
+
+
+From 1abffc718c482d1dd673edd9dae14be28d7a5f27 Mon Sep 17 00:00:00 2001
+From: mac <mac@macdeMacBook-Pro-3.local>
+Date: Mon, 28 Sep 2026 04:00:14 +0800
+Subject: [PATCH 4/5] Restore upstream startup waypoint and instruction schema
+ for system parity
+
+---
+ .../sensor_coverage_planner_ground.cpp                   | 2 +-
+ src/vlm_node/vlm_node/vlm_reasoning_node.py              | 9 ++-------
+ 2 files changed, 3 insertions(+), 8 deletions(-)
+
+diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+index 0346b55..9b33535 100644
+--- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
++++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+@@ -2034,7 +2034,7 @@ void SensorCoveragePlanner3D::CheckDoorCloudInRange()
+ void SensorCoveragePlanner3D::SendInitialWaypoint()
+ {
+   // send waypoint ahead
+-  double lx = 0.0; // Hold until observed geometry supports a path.
++  double lx = 12.0;
+   double ly = 0.0;
+   double dx = cos(robot_yaw_) * lx - sin(robot_yaw_) * ly;
+   double dy = sin(robot_yaw_) * lx + cos(robot_yaw_) * ly;
+diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+index 0a3d63e..3247737 100644
+--- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
++++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
+@@ -21,7 +21,6 @@ from rviz_2d_overlay_msgs.msg import OverlayText
+ from openai import OpenAI
+ from vlm_node.deepseek_client import DeepSeekClient
+ from pydantic import BaseModel
+-from typing import Literal
+ import os
+ import json
+ import time
+@@ -182,10 +181,6 @@ class VLMNode(Node):
+             self.object_list += value['prompts']
+         self.get_logger().info(f"Object List: {self.object_list}")
+ 
+-        self.instruction_decomposition_prompt += (
+-            "\nUse canonical object categories from the JSON schema. Keep subtypes in attributes, "
+-            "e.g. upholstered armchair -> target_object chair, attribute_condition upholstered armchair. "
+-            "Keep all room, spatial, and appearance constraints in the decomposition.")
+         self.skip_set = ["next", "dynamic"]
+ 
+         self.bridge = CvBridge()
+@@ -759,11 +754,11 @@ class VLMNode(Node):
+             return
+         
+         class Result(BaseModel):
+-            target_object: Literal[tuple(self.label_template.keys())]
++            target_object: str
+             room_condition: str
+             spatial_condition: str
+             attribute_condition: str
+-            anchor_object: Literal[("", *self.label_template.keys())]
++            anchor_object: str
+             attribute_condition_anchor: str
+         try:
+             completion = self.vlm_model.beta.chat.completions.parse(
+-- 
+2.55.0
+
+
+From 7d4c9b1b2e1dc1c86fd85fb90fc0a1e95b1bd103 Mon Sep 17 00:00:00 2001
+From: mac <mac@macdeMacBook-Pro-3.local>
+Date: Mon, 28 Sep 2026 04:10:06 +0800
+Subject: [PATCH 5/5] Calibrate camera projection to the physical LiDAR pose
+ supplied to SysNav
+
+---
+ .../sensor_coverage_planner_ground.cpp                      | 6 +++---
+ src/semantic_mapping/semantic_mapping/cloud_image_fusion.py | 2 +-
+ src/vlm_node/vlm_node/utils.py                              | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+index 9b33535..00a916e 100644
+--- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
++++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+@@ -2253,7 +2253,7 @@ void SensorCoveragePlanner3D::UpdateObjectVisibility()
+         }
+         Eigen::Vector3d current_viewpoint_pos(viewpoint.GetPosition().x,
+                                               viewpoint.GetPosition().y,
+-                                              viewpoint.GetPosition().z + 0.45); // make this to the height of the robot camera
++                                              viewpoint.GetPosition().z); // make this to the height of the robot camera
+         Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+ 
+         if ((current_viewpoint_pos - object_pos).norm() > rep_sensor_range)
+@@ -2403,7 +2403,7 @@ void SensorCoveragePlanner3D::UpdateViewpointObjectVisibility()
+   representation_ns::ViewPointRep &current_viewpoint = representation_->GetViewPointRepNode(curr_viewpoint_rep_node_ind);
+   Eigen::Vector3d current_viewpoint_pos(current_viewpoint.GetPosition().x,
+                                         current_viewpoint.GetPosition().y,
+-                                        current_viewpoint.GetPosition().z + 0.45); // make this to the height of the robot camera
++                                        current_viewpoint.GetPosition().z); // make this to the height of the robot camera
+   Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+   for (auto &id_object_pair : representation_->GetObjectNodeRepMapMutable())
+   {
+@@ -4123,7 +4123,7 @@ cv::Mat SensorCoveragePlanner3D::project_pcl_to_image(
+   cv::Mat image_projected = image.clone();
+   cv::Mat rotated_image = image.clone();
+   const float PI = 3.1415926f;
+-  const float camX = 0.0f, camY = 0.0f, camZ = 0.45f;
++  const float camX = 0.0f, camY = 0.0f, camZ = 0.0f;
+   const float camRoll = -1.5707963f, camPitch = 0.0f, camYaw = -1.5707963f;
+   const int imageWidth = 1920;
+   const int imageHeight = 640;
+diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+index 7f68c6b..7822e7a 100755
+--- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
++++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
+@@ -71,7 +71,7 @@ def scan2pixels_wheelchair(laserCloud):
+     return scan2pixels(laserCloud, L2C_PARA, CAMERA_PARA, LIDAR_PARA)
+ 
+ def scan2pixels_mecanum_sim(laserCloud):
+-    CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.45, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}  # cropped 30 degree(160 pixels) in top and  30 degree(160 pixels) in bottom 
++    CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}  # cropped 30 degree(160 pixels) in top and  30 degree(160 pixels) in bottom 
+     LIDAR_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+ 
+     lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
+diff --git a/src/vlm_node/vlm_node/utils.py b/src/vlm_node/vlm_node/utils.py
+index e4d32b7..4269381 100644
+--- a/src/vlm_node/vlm_node/utils.py
++++ b/src/vlm_node/vlm_node/utils.py
+@@ -9,7 +9,7 @@ def project_bbox3d(img, bbox3d, transform_matrix, platform='mecanum'):
+         CAMERA_PARA= {"x": -0.24, "y": -0.0, "z": 0.14, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
+     else: # for mecanum simulation platform
+         LIDAR_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+-        CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.45, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
++        CAMERA_PARA= {"x": 0.0, "y": 0.0, "z": 0.0, "roll": -1.5707963, "pitch": 0, "yaw": -1.5707963, "hfov": 360, "vfov": 120, "width": 1920, "height": 640}
+ 
+     lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
+     lidarRoll = LIDAR_PARA["roll"] #  lidarRollStack[imageIDPointer]
 -- 
 2.55.0
 

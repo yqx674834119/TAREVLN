@@ -93,6 +93,9 @@ archive = out / "source"
 archive.mkdir()
 hashes = {}
 for relative in ["sim/run_sysnav_full.py", "sim/sysnav_full_worker.py", "sim/sysnav_full_sandbox.py", "sim/go2_policy.py",
+                 "sim/sysnav_sensor_bridge.py", "sim/sysnav_runtime_audit.py", "config/sysnav-isaac-overrides.json",
+                 "config/sysnav-parity-manifest.json", "config/sysnav-navigation-boundary.ply", "config/sysnav-source-review.json",
+                 "src/vln_core/sysnav_sensor_contract.py",
                  "src/vln_policy/sysnav_tasks.py", "sim/sysnav_evaluation.py", "sim/fixtures/sysnav-object-evaluation.json",
                  "sim/sysnav_go2_policy.py", "sim/camera_readiness.py",
                  "sim/planning_recorder.py", "src/vln_core/planning_geometry.py",
@@ -119,6 +122,11 @@ for subtree in ('src/semantic_mapping/semantic_mapping','src/vlm_node/vlm_node')
 for file,label in [(VLN/'assets/sysnav/provenance.json','models.json'),(VLN/'logs/sysnav-full-python.lock','python.lock')]:
     if file.exists():shutil.copyfile(file,archive/label)
 (archive/'upstream.diff').write_text(subprocess.check_output(['git','-C',str(source_root),'diff','HEAD'],text=True))
+(archive/'git-revisions.json').write_text(json.dumps({
+    'platform_head':subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip(),
+    'sysnav_head':subprocess.check_output(['git','-C',str(source_root),'rev-parse','HEAD'],text=True).strip(),
+    'sysnav_status':subprocess.check_output(['git','-C',str(source_root),'status','--porcelain'],text=True).splitlines()
+},indent=2))
 (archive / "sha256.json").write_text(json.dumps(hashes, indent=2))
 native = VLN / "deps/sysnav-full/build/tare_planner"
 if native.exists():
@@ -228,7 +236,7 @@ try:
         report['sensor_model'] = 'rigid base-mounted instantaneous virtual lidar and RGB panorama; no noise or IMU fusion'
         report['odometry_initialization'] = 'relative origin, level orientation, nominal base height 0.4 m'
     else:
-        report['sensor_model'] = 'legacy world-stabilized virtual lidar and RGB panorama'
+        report['sensor_model'] = 'rigid base-mounted virtual lidar and RGB panorama; ideal ground-truth base pose'
     trace = open(out / "trajectory.jsonl", "w")
     command = np.zeros(3)
     action = {}
@@ -254,15 +262,15 @@ try:
         speed = float(np.linalg.norm(vel))
         distance += float(np.linalg.norm(pos[:2]-last_pos[:2]))
         last_pos = pos.copy()
-        obs = {"time": t, "position": pos.tolist(), "orientation": quat.tolist(), "velocity": vel.tolist(), "yaw": yaw}
+        obs = {"time": t, "position": pos.tolist(), "orientation": quat.tolist(), "velocity": (rot.T @ vel).tolist(), "yaw": yaw}
         if step % 40 == 0:
             points = []
             raw_points = []
             mount = np.array([0.,0.,.45])
-            origin = pos + (rot @ mount if odometry else mount)
+            origin = pos + rot @ mount
             for a, e in angles:
                 local_direction = np.array([math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)])
-                direction = rot @ local_direction if odometry else local_direction
+                direction = rot @ local_direction
                 hit = query.raycast_closest(tuple(map(float, origin)), tuple(map(float, direction)), 10.)
                 if hit["hit"] and hit["distance"] > .4:
                     if odometry and any(str(hit.get(k, '')).startswith('/World/Go2') for k in ('rigidBody', 'collision')):

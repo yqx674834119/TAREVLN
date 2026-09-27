@@ -1,7 +1,7 @@
 {
   "upstream": "https://github.com/zwandering/SysNav",
   "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
-  "port_revision": "13f567ae1fdcbb661dd43301d6efc9d6fd3ac7e5",
+  "port_revision": "7d4c9b1b2e1dc1c86fd85fb90fc0a1e95b1bd103",
   "patch": "patches/sysnav-full-isaac.patch",
   "runtime": "RoboStack Humble Python3.12 + isolated CUDA12.8 Python overlay",
   "provider": "DeepSeek",
@@ -15,11 +15,15 @@
     "pathFollower",
     "detection_node",
     "semantic_mapping_node",
-    "vlm_reasoning_node"
+    "vlm_reasoning_node",
+    "sensorScanGeneration",
+    "navigationBoundary"
   ],
-  "sensor_adapter": "Isaac RGB panorama 1920x640 360x120 degrees; virtual lidar; GICP relative odometry",
+  "sensor_adapter": "Rigid 1920x640 360x120 panorama and virtual LiDAR co-located at base+[0,0,0.45]; GICP base pose rebased to sensor; native scan synchronization",
   "robot_adapter": "Go2 joint effort policy v5, simulation only",
   "oracle_access": false,
   "physical_hardware_ready": false,
-  "ros_domain": 94
+  "ros_domain": 94,
+  "parity_manifest": "config/sysnav-parity-manifest.json",
+  "source_review": "config/sysnav-source-review.json"
 }

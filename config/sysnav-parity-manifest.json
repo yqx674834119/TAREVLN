@@ -1,0 +1,157 @@
+{
+  "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
+  "profile": "official-simulation-launch + explicit Isaac Go2 embodiment",
+  "sources_sha256": {
+    "src/base_autonomy/vehicle_simulator/launch/system_simulation_with_exploration_planner.launch": "c5b1f9591d1ac3cd4e559b3555362b80a2a685a710d44baa722275c191fc5127",
+    "src/exploration_planner/tare_planner/launch/explore_world_sim.launch": "4ef63fb721a2a67c7302452a5dd338216a98ba6a264247c41ae03487c2350126",
+    "src/exploration_planner/tare_planner/launch/room_segmentation.launch": "e2a8d7e6addfe52a1ad1517f8567e2c86cb1e24ed0a3322cb551ab8f2b765471",
+    "src/semantic_mapping/launch/semantic_mapping_sim.launch": "ba03637fca31197e53d804a22d707525e441c174d2809c213f063ce385873b3d",
+    "src/semantic_mapping/launch/detection_node.launch": "cc3dc52e320d132c894dd153b624c9bc83a5dfcdc87186b31fbda73c56d5ca5c",
+    "src/vlm_node/launch/vlm_node.launch": "0a945f8777f485eda41fef2eb53be14846746a88e1537b9ef34e6f1600256aae",
+    "src/exploration_planner/tare_planner/config/matterport_sim.yaml": "200b3eca44a687b3fd7e4341961866de957d716eddcf32d45867107e3fb24422",
+    "src/base_autonomy/local_planner/launch/local_planner.launch": "a932ed0c12e8b4af18a82ca15ed6021594bfe588e3681e182ab26b4d46206989",
+    "src/base_autonomy/local_planner/config/omniDir.yaml": "933292a0f2102097204857d1af94b839e698d1625c0f97248ad8a0c5813790ec",
+    "src/base_autonomy/local_planner/config/unitree/unitree_go2_fast.yaml": "d7f392ccb423198efda9a1632babfd1a6563d60f50215f78797490037eb67402",
+    "src/base_autonomy/terrain_analysis/launch/terrain_analysis.launch": "1a52b408ce04a6b8d9ed71ec718d237fb096c3e15a4c73080af7edf077db5414",
+    "src/base_autonomy/terrain_analysis_ext/launch/terrain_analysis_ext.launch": "83b7c1ba8fca385025e5632118dfa9321315e37c6790ea40ce0561a21613ab7d",
+    "src/semantic_mapping/config/mapping_mecanum_sim.yaml": "bed169c35a23b4ee2481255ffccc5a93061f575aa79da9a758441d8c4d46a4af",
+    "src/vlm_node/config/vlm_config.yaml": "84360b7331de37d38b1d12a9a80cbc8b48355dad94bbef79e988fe7d0eb6df67"
+  },
+  "overrides": [
+    {
+      "node": "localPlanner",
+      "key": "autonomyMode",
+      "upstream": false,
+      "value": true,
+      "reason": "The dashboard starts autonomous simulation tasks instead of a physical joystick."
+    },
+    {
+      "node": "localPlanner",
+      "key": "sensorOffsetX",
+      "upstream": 0.2,
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    {
+      "node": "localPlanner",
+      "key": "sensorOffsetY",
+      "upstream": 0.0,
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    {
+      "node": "localPlanner",
+      "key": "vehicleLength",
+      "upstream": 0.6,
+      "value": 0.7,
+      "reason": "Preserve the simulated articulated Go2 swept footprint including its legs."
+    },
+    {
+      "node": "localPlanner",
+      "key": "vehicleWidth",
+      "upstream": 0.5,
+      "value": 0.6,
+      "reason": "Preserve the simulated articulated Go2 swept footprint including its legs."
+    },
+    {
+      "node": "localPlanner",
+      "key": "maxSpeed",
+      "upstream": 2.0,
+      "value": 0.45,
+      "reason": "Validated simulation-only Go2 velocity controller envelope."
+    },
+    {
+      "node": "localPlanner",
+      "key": "autonomySpeed",
+      "upstream": 2.0,
+      "value": 0.35,
+      "reason": "Validated simulation-only Go2 velocity controller envelope."
+    },
+    {
+      "node": "pathFollower",
+      "key": "realRobot",
+      "upstream": null,
+      "value": false,
+      "reason": "Isaac-only execution; never opens or commands physical hardware."
+    },
+    {
+      "node": "pathFollower",
+      "key": "autonomyMode",
+      "upstream": false,
+      "value": true,
+      "reason": "The dashboard replaces joystick task activation."
+    },
+    {
+      "node": "pathFollower",
+      "key": "sensorOffsetX",
+      "upstream": null,
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    {
+      "node": "pathFollower",
+      "key": "sensorOffsetY",
+      "upstream": null,
+      "value": 0.0,
+      "reason": "Virtual LiDAR is mounted 0.45 m vertically above the Go2 base, with zero XY offset."
+    },
+    {
+      "node": "pathFollower",
+      "key": "maxSpeed",
+      "upstream": 2.0,
+      "value": 0.45,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    {
+      "node": "pathFollower",
+      "key": "autonomySpeed",
+      "upstream": 2.0,
+      "value": 0.35,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    {
+      "node": "pathFollower",
+      "key": "maxAccel",
+      "upstream": 1.0,
+      "value": 0.6,
+      "reason": "Validated simulation-only Go2 controller envelope."
+    },
+    {
+      "node": "pathFollower",
+      "key": "maxYawRate",
+      "upstream": 90.0,
+      "value": 40.0,
+      "reason": "Go2 controller is validated at up to 0.7 rad/s, not the official fast-robot rate."
+    },
+    {
+      "node": "terrainAnalysisExt",
+      "key": "terrainUnderVehicle",
+      "upstream": -0.75,
+      "value": -0.78,
+      "reason": "Floor seed is below the physical LiDAR origin: standing Go2 base 0.33 m plus 0.45 m mount."
+    },
+    {
+      "node": "vlm_node",
+      "key": "platform",
+      "upstream": "mecanum",
+      "value": "mecanum_sim",
+      "reason": "Select the calibrated simulated panorama projection shared with the mapper, not the physical mecanum camera."
+    },
+    {
+      "node": "vlm_node",
+      "key": "log_dir",
+      "upstream": "logs/episode_0",
+      "value": "logs",
+      "reason": "Each experiment has an isolated output directory."
+    },
+    {
+      "node": "semantic_mapping_node",
+      "key": "save_png",
+      "upstream": null,
+      "value": true,
+      "reason": "Retain perception evidence for this diagnostic; does not change mapping decisions."
+    }
+  ],
+  "clock": "all nodes use the same Isaac clock",
+  "unresolved_parameter_overrides": []
+}

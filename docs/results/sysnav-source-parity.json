@@ -1,0 +1,51 @@
+{
+  "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
+  "source_review_passed": true,
+  "configuration_inheritance_passed": true,
+  "reviewed_changed_files": 16,
+  "byte_identical_source_directories": [
+    "src/exploration_planner/tare_planner/src/room_segmentation",
+    "src/exploration_planner/tare_planner/src/representation",
+    "src/exploration_planner/tare_planner/src/keypose_graph",
+    "src/exploration_planner/tare_planner/src/planning_env",
+    "src/exploration_planner/tare_planner/src/rolling_occupancy_grid",
+    "src/exploration_planner/tare_planner/src/tsp_solver"
+  ],
+  "runtime_checked": true,
+  "runtime_contract_passed": true,
+  "runtime_failures": [],
+  "claim": "No unreviewed source or parameter drift; NOT a claim of bitwise algorithm or simulator equivalence",
+  "upstream_yaml_keys_not_effective": {
+    "tare_planner_node": [
+      "kDoorCollisionCheckPointNumThr",
+      "kDoorCollisionCheckRadius",
+      "kKeyposeGraphCollisionCheckPointNumThr",
+      "kKeyposeGraphCollisionCheckRadius"
+    ],
+    "room_segmentation": [
+      "savePcd"
+    ],
+    "localPlanner": [
+      "goalReachedThreshold",
+      "goalYawThreshold"
+    ],
+    "pathFollower": [
+      "goalYawGain"
+    ],
+    "semantic_mapping_node": [
+      "captioner_batch_size",
+      "image_processing_interval",
+      "vis_interval",
+      "visualize"
+    ],
+    "detection_node": [
+      "captioner_batch_size",
+      "detection_angular_state_time_bias",
+      "detection_linear_state_time_bias",
+      "image_processing_interval",
+      "target_object",
+      "vis_interval",
+      "visualize"
+    ]
+  }
+}

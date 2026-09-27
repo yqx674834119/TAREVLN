@@ -29,7 +29,8 @@ class FullSysNavProcess:
                 "--ro-bind", str(ros), str(ros), "--ro-bind", str(source), str(source),
                 "--ro-bind", str(project / "src"), "/app",
                 "--ro-bind", str(project / "sim/sysnav_full_worker.py"), "/sim/sysnav_full_worker.py",
-                "--ro-bind", str(project / "sim/office_ros_worker.py"), "/sim/office_ros_worker.py",
+                "--ro-bind", str(project / "sim/sysnav_sensor_bridge.py"), "/sim/sysnav_sensor_bridge.py",
+                "--ro-bind", str(project / "sim/sysnav_runtime_audit.py"), "/sim/sysnav_runtime_audit.py",
                 "--ro-bind", str(project / "sim/planning_recorder.py"), "/sim/planning_recorder.py",
                 "--ro-bind", str(envroot), str(envroot),
                 "--ro-bind", str(root / "deps/sam2"), str(root / "deps/sam2"),
@@ -37,6 +38,7 @@ class FullSysNavProcess:
                 "--ro-bind", str(root / "assets/sam"), "/models/sam",
                 "--ro-bind", str(root / "assets/sysnav"), "/models/sysnav",
                 "--ro-bind", str(project / "config/sysnav-full-ros.yaml"), "/config.yaml",
+                "--ro-bind", str(project / "config/sysnav-navigation-boundary.ply"), "/boundary.ply",
                 "--bind", str(output), "/output",
                 "--ro-bind", str(root / "secrets/deepseek-api-key"), "/run/secrets/deepseek-api-key"]
         for path in ("/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/ssl", "/etc/localtime"):
@@ -75,7 +77,7 @@ class FullSysNavProcess:
         for name, value in env.items():
             args += ["--setenv", name, value]
         args += ["--chdir", "/workspace", str(envroot / "bin/python"), "-u", "/sim/sysnav_full_worker.py", "--source", str(source), "--config", "/config.yaml", "--output", "/output"]
-        args += ["--task", task]
+        args += ["--task", task,"--boundary","/boundary.ply"]
         if instruction is not None:args+=['--instruction',instruction]
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr,
                                         text=True, bufsize=1, env={"PATH": "/usr/bin:/bin"})

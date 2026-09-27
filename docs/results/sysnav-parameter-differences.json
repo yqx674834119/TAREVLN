@@ -1,0 +1,284 @@
+[
+  {
+    "node": "tare_planner_node",
+    "key": "kRushHome",
+    "old": false,
+    "new": true
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kExtendWayPoint",
+    "old": false,
+    "new": true
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kLookAheadDistance",
+    "old": 1.0,
+    "new": 4.0
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kUseCoverageBoundaryOnFrontier",
+    "old": false,
+    "new": true
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kPointCloudRowNum",
+    "old": 20,
+    "new": 50
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kPointCloudColNum",
+    "old": 20,
+    "new": 50
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kPointCloudLevelNum",
+    "old": 5,
+    "new": 30
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kViewPointHeightFromTerrain",
+    "old": 0.3,
+    "new": 0.75
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kSensorRange",
+    "old": 10.0,
+    "new": 3.0
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kGridWorldXNum",
+    "old": 51,
+    "new": 121
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kGridWorldYNum",
+    "old": 51,
+    "new": 121
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "kGridWorldZNum",
+    "old": 5,
+    "new": 121
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "room_x",
+    "old": 1200,
+    "new": 3000
+  },
+  {
+    "node": "tare_planner_node",
+    "key": "room_y",
+    "old": 1200,
+    "new": 3000
+  },
+  {
+    "node": "localPlanner",
+    "key": "minRelZ",
+    "old": -0.15,
+    "new": -0.4
+  },
+  {
+    "node": "localPlanner",
+    "key": "maxRelZ",
+    "old": 0.5,
+    "new": 0.3
+  },
+  {
+    "node": "localPlanner",
+    "key": "checkRotObstacle",
+    "old": true,
+    "new": false
+  },
+  {
+    "node": "localPlanner",
+    "key": "minPathScale",
+    "old": 0.6,
+    "new": 0.675
+  },
+  {
+    "node": "localPlanner",
+    "key": "pathScale",
+    "old": 0.8,
+    "new": 0.875
+  },
+  {
+    "node": "localPlanner",
+    "key": "minPathRange",
+    "old": 0.7,
+    "new": 0.8
+  },
+  {
+    "node": "localPlanner",
+    "key": "pathRangeStep",
+    "old": 0.3,
+    "new": 0.6
+  },
+  {
+    "node": "localPlanner",
+    "key": "pathScaleBySpeed",
+    "old": false,
+    "new": true
+  },
+  {
+    "node": "localPlanner",
+    "key": "pathRangeBySpeed",
+    "old": false,
+    "new": true
+  },
+  {
+    "node": "localPlanner",
+    "key": "goalClearRange",
+    "old": 0.35,
+    "new": 0.6
+  },
+  {
+    "node": "localPlanner",
+    "key": "freezeAng",
+    "old": 180.0,
+    "new": 90.0
+  },
+  {
+    "node": "localPlanner",
+    "key": "goalBehindRange",
+    "old": 0.25,
+    "new": 0.8
+  },
+  {
+    "node": "localPlanner",
+    "key": "pointPerPathThre",
+    "old": 1,
+    "new": 2
+  },
+  {
+    "node": "pathFollower",
+    "key": "twoWayDrive",
+    "old": true,
+    "new": false
+  },
+  {
+    "node": "pathFollower",
+    "key": "yawRateGain",
+    "old": 1.2,
+    "new": 1.0
+  },
+  {
+    "node": "pathFollower",
+    "key": "stopYawRateGain",
+    "old": 1.2,
+    "new": 1.0
+  },
+  {
+    "node": "pathFollower",
+    "key": "dirDiffThre",
+    "old": 1.6,
+    "new": 0.3
+  },
+  {
+    "node": "pathFollower",
+    "key": "omniDirDiffThre",
+    "old": 1.6,
+    "new": 1.5
+  },
+  {
+    "node": "pathFollower",
+    "key": "stopDisThre",
+    "old": 0.25,
+    "new": 0.3
+  },
+  {
+    "node": "pathFollower",
+    "key": "slowDwnDisThre",
+    "old": 0.8,
+    "new": 0.875
+  },
+  {
+    "node": "pathFollower",
+    "key": "noRotAtGoal",
+    "old": true,
+    "new": false
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "vehicleHeight",
+    "old": 0.3,
+    "new": 1.5
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "minRelZ",
+    "old": -0.6,
+    "new": -1.5
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "maxRelZ",
+    "old": 1.0,
+    "new": 0.3
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "minBlockPointNum",
+    "old": 3,
+    "new": 10
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "decayTime",
+    "old": 30.0,
+    "new": 1.0
+  },
+  {
+    "node": "terrainAnalysis",
+    "key": "noDecayDis",
+    "old": 4.0,
+    "new": 1.75
+  },
+  {
+    "node": "terrainAnalysisExt",
+    "key": "vehicleHeight",
+    "old": 0.3,
+    "new": 1.5
+  },
+  {
+    "node": "terrainAnalysisExt",
+    "key": "minRelZ",
+    "old": -0.6,
+    "new": "upstream declared default"
+  },
+  {
+    "node": "terrainAnalysisExt",
+    "key": "maxRelZ",
+    "old": 1.0,
+    "new": "upstream declared default"
+  },
+  {
+    "node": "room_segmentation",
+    "key": "room_x",
+    "old": 1200,
+    "new": 3000
+  },
+  {
+    "node": "room_segmentation",
+    "key": "room_y",
+    "old": 1200,
+    "new": 3000
+  },
+  {
+    "node": "detection_node",
+    "key": "grounding_score_thresh",
+    "old": 0.3,
+    "new": 0.35
+  }
+]
