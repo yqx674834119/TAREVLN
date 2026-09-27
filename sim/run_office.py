@@ -51,6 +51,7 @@ for relative in ["sim/run_office.py", "sim/office_ros_worker.py", "sim/office_sa
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/office-ros.yaml",
                  "config/sysnav-provenance.json", "patches/sysnav-isaac-mission.patch", "scripts/odometry_worker.py",
                  "scripts/sam_worker.py","config/sam2-provenance.json",*[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_perception').glob('*.py')],
+                 "src/vln_policy/inspection_handoff.py",
                  *[str(p.relative_to(ROOT)) for p in (ROOT/'src/vln_localization').glob('*.py')]]:
     file = ROOT / relative
     if file.exists():
