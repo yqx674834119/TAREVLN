@@ -16,6 +16,7 @@ parser.add_argument("--controller", choices=('legacy','lab'), default='legacy')
 parser.add_argument("--ground", choices=('box','plane','plane_clean'), default='box')
 parser.add_argument("--ground-torsion-radius", type=float, help='Controlled override of ground/threshold torsional friction patch radii')
 parser.add_argument('--ground-contact-offset',type=float,help='Controlled ground/threshold contact generation distance; rest geometry unchanged')
+parser.add_argument('--gpu',type=int,default=0,help='GPU for the headless application; rigid body world and actor remain on CPU')
 parser.add_argument("--yaw", type=float, default=0.)
 parser.add_argument("--threshold", type=float, default=0.)
 parser.add_argument("--checkpoint", type=Path)
@@ -32,7 +33,7 @@ for file in source_files:
     shutil.copyfile(file, out / file.name)
 
 from isaacsim import SimulationApp
-app = SimulationApp({"headless": True, "multi_gpu": False, "active_gpu": 0, "physics_gpu": 0,
+app = SimulationApp({"headless": True, "multi_gpu": False, "active_gpu": args.gpu, "physics_gpu": args.gpu,
                      "width": 640, "height": 480, "fast_shutdown": True})
 try:
     import numpy as np
@@ -244,6 +245,7 @@ try:
                  if not item['nonfoot'] and item['support_steps']>0
                  for p in pair.split(' | ') if '_foot/' in p}
     report = {"physics": args.physics, "ground":args.ground,"ground_torsion_radius":args.ground_torsion_radius,"ground_contact_offset":args.ground_contact_offset,"controller":args.controller, "disable_sleep":args.disable_sleep, "yaw": args.yaw, "threshold": args.threshold,
+              "application_gpu":args.gpu,"rigid_body_world_device":"cpu",
               "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
               "joint_names": policy.robot.dof_names, "phases": metrics, "contact_pairs": pairs,
               "nonfoot_pairs_after_settling": nonfoot,

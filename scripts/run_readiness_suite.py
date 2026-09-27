@@ -13,6 +13,7 @@ ap.add_argument('--checkpoint',type=Path,required=True)
 ap.add_argument('--out',type=Path,required=True)
 ap.add_argument('--ground-torsion-radius',type=float)
 ap.add_argument('--ground-contact-offset',type=float)
+ap.add_argument('--gait-gpu',type=int,default=0)
 ap.add_argument('--sam',action='store_true')
 ap.add_argument('--api-proxy')
 ap.add_argument('--odometry',choices=('ideal','gicp'),default='ideal')
@@ -34,7 +35,8 @@ def manifest():
 frozen=manifest()
 (args.out/'freeze.json').write_text(json.dumps({'files':frozen,'config':cfg,'kind':args.kind,
     'ground_torsion_radius':args.ground_torsion_radius,'ground_contact_offset':args.ground_contact_offset,
-    'odometry':args.odometry,'lidar_profile':args.lidar_profile,'sam':args.sam,'api_proxy':args.api_proxy},indent=2))
+    'odometry':args.odometry,'lidar_profile':args.lidar_profile,'sam':args.sam,'api_proxy':args.api_proxy,
+    'gait_gpu':args.gait_gpu},indent=2))
 results=[]
 if args.kind=='gait':
     cases=list(itertools.product(cfg['initial_yaws_rad'],cfg['threshold_heights_m']))
@@ -46,7 +48,7 @@ for i,case in enumerate(cases):
     if args.kind=='gait':
         yaw,threshold=case
         run=args.out/name
-        command=['sim/diagnose_go2.py','--yaw',str(yaw),'--threshold',str(threshold),'--out',str(run)]
+        command=['sim/diagnose_go2.py','--yaw',str(yaw),'--threshold',str(threshold),'--out',str(run),'--gpu',str(args.gait_gpu)]
         if args.ground_torsion_radius is not None:
             command+=['--ground-torsion-radius',str(args.ground_torsion_radius)]
         if args.ground_contact_offset is not None:
