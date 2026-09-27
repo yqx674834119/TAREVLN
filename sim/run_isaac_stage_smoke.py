@@ -22,7 +22,10 @@ STAGE = OUTPUT / "demo_campus.usda"
 if not STAGE.is_file():
     raise SystemExit(f"generate the scene first: {STAGE}")
 
-app = SimulationApp({"headless": True, "open_usd": str(STAGE), "width": 640, "height": 480})
+app = SimulationApp({"headless": True, "open_usd": str(STAGE), "width": 640, "height": 480,
+                     "create_new_stage": False,
+                     "multi_gpu": False, "active_gpu": 0, "physics_gpu": 0,
+                     "anti_aliasing": 0, "fast_shutdown": False})
 try:
     import omni.usd
     from isaacsim.core.utils.stage import is_stage_loading
@@ -42,5 +45,9 @@ try:
               "scope": "USD stage load only; no Go2, elevator, or navigation acceptance"}
     (OUTPUT / "isaac_stage_smoke.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
+except Exception:
+    import traceback
+    traceback.print_exc()
+    raise
 finally:
     app.close()

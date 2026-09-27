@@ -1,6 +1,6 @@
 # 粗地理先验下的跨楼宇、跨楼层目标导航：研究与系统方案
 
-状态：2026-09-27 的原始设计稿；部署进度以本项目 README 为准。当前仅完成示意多楼层场景与 Go2 静态物理/渲染检查，没有跨楼宇导航闭环或机器狗实测。TARE_WheelTECH 的 `codex/cross-building-floor-nav` 分支从本机 `main` 的 `c991d73` 建立。用户提到的 Navsys 是另一个 TARE＋VLM 机器狗导航项目，作为架构和基线参考；TARE_WheelTECH 独立的 `unitree` 分支已有 Go2 适配记录，可作为后续载具接口来源。研究任务与载具集成分别演进。
+状态：2026-09-27 的原始设计稿；部署进度以本项目 README 为准。本轮新增的 P1 诊断基线已在 Isaac 中完成跨楼宇跨楼层路线，详见 `p1-results.md`；该基线使用二维码和理想里程计，不等于下文提出的研究方法，也没有机器狗实测。TARE_WheelTECH 的 `codex/cross-building-floor-nav` 分支从本机 `main` 的 `c991d73` 建立。用户提到的 Navsys 是另一个 TARE＋VLM 机器狗导航项目，作为架构和基线参考；TARE_WheelTECH 独立的 `unitree` 分支已有 Go2 适配记录，可作为后续载具接口来源。研究任务与载具集成分别演进。
 
 ## 0. 一句话判断与贡献边界
 

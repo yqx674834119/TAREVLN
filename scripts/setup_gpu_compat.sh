@@ -25,6 +25,9 @@ for source_file in "$source_dir"/*.so.580.173.02; do
     ln -sfn "${source_file##*/}" "$libdir/$soname"
   fi
 done
+# Kit's CUDA interop plugins also dlopen the unversioned development names.
+ln -sfn libcuda.so.1 "$libdir/libcuda.so"
+ln -sfn libnvidia-ml.so.1 "$libdir/libnvidia-ml.so"
 cp -a "$source_dir/nvidia-smi" "$root/toolchains/nvidia-580.173.02/nvidia-smi"
 cat > "$root/toolchains/nvidia-580.173.02/nvidia_icd.json" <<EOF
 {"file_format_version":"1.0.1","ICD":{"library_path":"$libdir/libGLX_nvidia.so.0","api_version":"1.3.0"}}
