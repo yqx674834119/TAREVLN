@@ -48,10 +48,12 @@ def capture_runtime(bridge, output, source, specs, children):
         file=Path('/proc')/str(child.pid)/'maps'
         for line in file.read_text().splitlines() if file.exists() else []:
             path=line.split()[-1]
-            if str(source) in path and path.startswith('/') and path not in mapped:
+            # Keep all mapped paths so the verifier can actually detect an old
+            # workspace. Filtering to the desired source would hide that error.
+            if path.startswith('/') and path not in mapped:
                 mapped.append(path)
                 p=Path(path)
-                if p.is_file():hashes[path]=hashlib.sha256(p.read_bytes()).hexdigest()
+                if str(source) in path and p.is_file():hashes[path]=hashlib.sha256(p.read_bytes()).hexdigest()
         result['processes'].append(dict(package=package,executable=executable,pid=child.pid,
                                        running=child.poll() is None,mapped_project_files=mapped))
     result['loaded_file_sha256']=hashes

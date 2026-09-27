@@ -168,7 +168,7 @@ localPlanner:
     terrainVoxelSize: 0.2
     useTerrainAnalysis: true
     checkObstacle: true
-    checkRotObstacle: false
+    checkRotObstacle: true
     groundHeightThre: 0.1
     costHeightThre1: 0.1
     costHeightThre2: 0.05

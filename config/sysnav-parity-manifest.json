@@ -68,6 +68,13 @@
       "reason": "Validated simulation-only Go2 velocity controller envelope."
     },
     {
+      "node": "localPlanner",
+      "key": "checkRotObstacle",
+      "upstream": false,
+      "value": true,
+      "reason": "Enable native rotation-envelope checking for articulated Go2. The official simulation default false produced real rear-leg/furniture contacts in parity-crossroom-001; this is an explicit embodiment constraint, not a new planner."
+    },
+    {
       "node": "pathFollower",
       "key": "realRobot",
       "upstream": null,

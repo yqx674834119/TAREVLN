@@ -57,13 +57,17 @@
       "patch_sha256": "84c9453f7d3c2c9fbbe03a546257e1fb56518459df342a8a63ab47be74ae3066",
       "reason": "Requested DeepSeek structured transport, budget and evidence log"
     },
+    "src/vlm_node/vlm_node/label_contract.py": {
+      "patch_sha256": "c5f8352830fc895d746b83e7e3cf6e91da57f89205bdf2525f6f55b51367de02",
+      "reason": "Normalize separator/case variants to actual detector identifiers; preserve unsupported names"
+    },
     "src/vlm_node/vlm_node/utils.py": {
       "patch_sha256": "1dcd3a9a1022add30ab99b2a1e9363ed4f8b1e8ce80133444cca81031a5d9ca7",
       "reason": "Calibrated simulated camera extrinsic"
     },
     "src/vlm_node/vlm_node/vlm_reasoning_node.py": {
-      "patch_sha256": "fda9ed587604f3f33a126533d3e78257f7d130f4eeff89d6b91ae59ffa37b5aa",
-      "reason": "Provider transport, concise public decision summaries, float ROS overlay and preserve evidence; original free-string instruction fields restored"
+      "patch_sha256": "77b02bd31c25d4ea18faebf13be1a1370d026e86bafc0dc164fc8bf8070ed411",
+      "reason": "Provider transport, public decision summaries, float ROS overlay; free-string fields with detector identifier contract, no silent unknown coercion"
     }
   }
 }

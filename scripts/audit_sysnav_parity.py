@@ -27,8 +27,9 @@ REASONS={
     SEM+'utils.py':'Remove unused spaCy import',
     VLM+'constants.py':'Requested DeepSeek API provider',
     VLM+'deepseek_client.py':'Requested DeepSeek structured transport, budget and evidence log',
+    VLM+'label_contract.py':'Normalize separator/case variants to actual detector identifiers; preserve unsupported names',
     VLM+'utils.py':'Calibrated simulated camera extrinsic',
-    VLM+'vlm_reasoning_node.py':'Provider transport, concise public decision summaries, float ROS overlay and preserve evidence; original free-string instruction fields restored'
+    VLM+'vlm_reasoning_node.py':'Provider transport, public decision summaries, float ROS overlay; free-string fields with detector identifier contract, no silent unknown coercion'
 }
 # These keys exist in upstream YAML but its nodes never declare/read them.
 # Record the limitation; every other configured parameter must be effective.
@@ -43,6 +44,8 @@ UPSTREAM_UNUSED={
 
 
 def source_diff(source):
+    untracked=subprocess.check_output(['git','-C',str(source),'ls-files','--others','--exclude-standard','--','src'],text=True).splitlines()
+    if untracked:raise ValueError('Unreviewed untracked source files: '+str(untracked))
     paths=subprocess.check_output(['git','-C',str(source),'diff','--name-only',BASE],text=True).splitlines()
     unknown=set(paths)-set(REASONS)
     if unknown:raise ValueError('Unreviewed source files: '+str(sorted(unknown)))
@@ -84,6 +87,18 @@ def check_runtime(runtime,config):
     return failures
 
 
+def check_instruction_contract(events,labels):
+    instructions=[r for r in events if r['topic']=='/target_object_instruction' and r.get('target')]
+    if not instructions:return ['No parsed task instruction recorded']
+    failures=[]
+    for row in instructions:
+        for key in ('target','anchor'):
+            value=row.get(key)
+            if value and (value=='unknown' or value not in labels):
+                failures.append(f'Instruction {key} does not match a detector identifier: {value!r}')
+    return failures
+
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--source',type=Path,default=ROOT.parent/'deps/sysnav-full')
@@ -106,7 +121,12 @@ def main():
         if not subprocess.check_output(['git','-C',str(args.source),'diff','--name-only',BASE,'--',directory]).strip():
             unchanged.append(directory)
     failures=[]
-    if args.run:failures=check_runtime(json.loads((args.run/'agent/runtime-contract.json').read_text()),config)
+    if args.run:
+        failures=check_runtime(json.loads((args.run/'agent/runtime-contract.json').read_text()),config)
+        vocabulary=yaml.safe_load((args.source/'src/semantic_mapping/semantic_mapping/config/objects.yaml').read_text())
+        labels={p for item in vocabulary['prompts'].values() for p in item['prompts']}
+        events=[json.loads(s) for s in (args.run/'agent/events.jsonl').read_text().splitlines()]
+        failures.extend(check_instruction_contract(events,labels))
     result=dict(upstream_revision=BASE,source_review_passed=True,configuration_inheritance_passed=True,
                 reviewed_changed_files=len(differences),byte_identical_source_directories=unchanged,
                 runtime_checked=bool(args.run),runtime_contract_passed=not failures if args.run else None,

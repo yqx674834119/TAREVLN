@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 sys.path.insert(0,str(ROOT/'sim'))
 from build_sysnav_parity_config import generate, build
-from audit_sysnav_parity import check_runtime
+from audit_sysnav_parity import check_runtime, check_instruction_contract
 from vln_core.sysnav_sensor_contract import SensorObservationAdapter, LIDAR_IN_BASE
 from vln_core.planning_geometry import rotation_wxyz, map_points
 SOURCE=ROOT.parent/'deps/sysnav-full'
@@ -28,6 +28,23 @@ class SysNavParityTest(unittest.TestCase):
         self.assertEqual(config['tare_planner_node']['ros__parameters']['kSensorRange'],3.)
         self.assertEqual(config['tare_planner_node']['ros__parameters']['kLookAheadDistance'],4.)
         self.assertEqual(config['terrainAnalysisExt']['ros__parameters']['checkTerrainConn'],True)
+
+    def test_detector_identifiers_preserve_semantics_and_exact_matches(self):
+        spec=importlib.util.spec_from_file_location('label_contract',SOURCE/'src/vlm_node/vlm_node/label_contract.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        labels=['tv_monitor','potted plant','coffee machine','chair','unknown']
+        for raw in ('TV MONITOR','tv_monitor','tv-monitor','  tv  monitor '):
+            self.assertEqual(module.canonical_label(raw,labels),'tv_monitor')
+        self.assertEqual(module.canonical_label('coffee_machine',labels),'coffee machine')
+        self.assertEqual(module.canonical_label('pool',labels),'pool')
+        self.assertEqual(module.canonical_label('',labels),'')
+        with self.assertRaises(ValueError):module.canonical_label('tv monitor',['tv monitor','tv_monitor'])
+
+    def test_gate_detects_real_cross_module_label_mismatch(self):
+        events=[dict(topic='/target_object_instruction',target='tv monitor',anchor='')]
+        self.assertTrue(check_instruction_contract(events,{'tv_monitor','chair'}))
+        events[0]['target']='tv_monitor'
+        self.assertEqual(check_instruction_contract(events,{'tv_monitor','chair'}),[])
 
     def test_runtime_gate_rejects_duplicate_scan_publisher(self):
         runtime=dict(parameters={},topics={},processes=[],parameter_errors=[])

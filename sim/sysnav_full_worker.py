@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import yaml
 
 import cv2
 import numpy as np
@@ -30,7 +31,7 @@ TASKS = {key:value[1] for key,value in PUBLIC_TASKS.items()}
 
 
 class Bridge(SensorBridge):
-    def __init__(self, output):
+    def __init__(self, output, source):
         super().__init__()
         self.images = self.create_publisher(Image, '/camera/image', 5)
         self.keyboard = self.create_publisher(String, '/keyboard_input', 5)
@@ -38,6 +39,9 @@ class Bridge(SensorBridge):
         self.events = (output/'events.jsonl').open('w', buffering=1)
         self.counts = Counter(self.counts)
         self.status, self.instruction = {}, None
+        vocabulary=yaml.safe_load((source/'src/semantic_mapping/semantic_mapping/config/objects.yaml').read_text())
+        self.supported_labels={p for value in vocabulary['prompts'].values() for p in value['prompts']}-{'unknown'}
+        self.instruction_contract_error=None
         self.objects, self.rooms = {}, {}
         self.planning=PlanningRecorder(self,output)
         self.sensor_adapter=SensorObservationAdapter()
@@ -62,7 +66,11 @@ class Bridge(SensorBridge):
             return
         if topic=='/target_object_instruction':
             self.instruction=msg.target_object or None
-            row.update(target=msg.target_object,room=msg.room_condition,attribute=msg.attribute_condition,spatial=msg.spatial_condition)
+            row.update(target=msg.target_object,anchor=msg.anchor_object,room=msg.room_condition,attribute=msg.attribute_condition,spatial=msg.spatial_condition)
+            if self.instruction:
+                unsupported=[label for label in (msg.target_object,msg.anchor_object) if label and label not in self.supported_labels]
+                self.instruction_contract_error=('Unsupported detector identifier(s): '+str(unsupported)) if unsupported else None
+                row['detector_contract_passed']=not unsupported
         elif topic=='/room_nodes_list':
             # Native RoomNodeList is a full snapshot, not append-only history.
             self.rooms={node.id:{'id':node.id,'area':node.area,'neighbors':list(node.neighbors),
@@ -125,7 +133,7 @@ def main():
     (args.output/'isolation.json').write_text(json.dumps({'oracle_visible':False,'scene_visible':False,'stack':'native SysNav','instruction':instruction}))
     children,logs=[],[]
     rclpy.init()
-    bridge=Bridge(args.output)
+    bridge=Bridge(args.output,args.source)
     threading.Thread(target=rclpy.spin,args=(bridge,),daemon=True).start()
     try:
         specs=[('sensor_scan_generation','sensorScanGeneration'),('tare_planner','navigationBoundary'),
@@ -157,6 +165,8 @@ def main():
         for line in sys.stdin:
             obs=json.loads(line);bridge.ingest(obs)
             time.sleep(.03)
+            if bridge.instruction_contract_error:
+                raise RuntimeError(bridge.instruction_contract_error)
             for p,(_,name) in zip(children,specs):
                 if p.poll() is not None:
                     raise RuntimeError(f'{name} exited with {p.returncode}; inspect node log')

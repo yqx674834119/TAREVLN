@@ -97,12 +97,6 @@
   },
   {
     "node": "localPlanner",
-    "key": "checkRotObstacle",
-    "old": true,
-    "new": false
-  },
-  {
-    "node": "localPlanner",
     "key": "minPathScale",
     "old": 0.6,
     "new": 0.675
