@@ -1,0 +1,82 @@
+{
+  "status": "timeout",
+  "success": false,
+  "acceptance_passed": false,
+  "instruction": "Leave this reception area. Enter a separate meeting room containing a shared meeting table and multiple chairs. Find its large wall-mounted tv monitor and stop near it inside that room. The television in the reception area does not satisfy the task.",
+  "simulation_seconds": 299.91499329637736,
+  "wall_seconds": 1620.8075455902144,
+  "distance_m": 68.06849729109373,
+  "final_position": [
+    -12.382793426513672,
+    57.60371017456055,
+    0.32745498418807983
+  ],
+  "stop_dwell": null,
+  "independent_goal_region": null,
+  "independent_object_evaluation": null,
+  "evaluation_definition": "sysnav-office-object-v2",
+  "contact_quality_passed": true,
+  "localization_evaluation": {
+    "alignment": "first pose only; evaluator private",
+    "frames": 1500,
+    "translation_rmse_m": 0.005908459080842366,
+    "maximum_translation_error_m": 0.011590217299553996,
+    "final_translation_error_m": 0.009974553825886637,
+    "maximum_rotation_error_deg": 0.09509585853099266,
+    "processing_p95_ms": 77.98885761294514
+  },
+  "physical_hardware_ready": false,
+  "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
+  "vlm_calls": 153,
+  "api_status": {
+    "ok": 153
+  },
+  "vlm_purposes": {
+    "process_instruction": 1,
+    "process_room_type_query": 94,
+    "process_object_type_query": 24,
+    "process_target_object_spatial_query": 23,
+    "process_room_early_stop_1_query": 5,
+    "process_room_navigation_query": 6
+  },
+  "calls_with_images": 152,
+  "native_counts": {
+    "waypoints": 298,
+    "paths": 1490,
+    "cmd_vel": 79663,
+    "candidate_sets": 0,
+    "mission_paths": 0,
+    "target_object_instruction": 2,
+    "camera": 298,
+    "detection_result": 298,
+    "room_nodes_list": 297,
+    "room_type_query": 94,
+    "viewpoint_rep_header": 11,
+    "room_type_answer": 94,
+    "room_navigation_query": 8,
+    "sysnav/status": 297,
+    "object_nodes_list": 525,
+    "object_type_query": 24,
+    "object_type_answer": 24,
+    "target_object_spatial_query": 23,
+    "target_object_answer": 23,
+    "room_navigation_answer": 7
+  },
+  "rooms": 6,
+  "objects": 76,
+  "isolation": {
+    "oracle_visible": false,
+    "scene_visible": false,
+    "stack": "native SysNav",
+    "instruction": "Leave this reception area. Enter a separate meeting room containing a shared meeting table and multiple chairs. Find its large wall-mounted tv monitor and stop near it inside that room. The television in the reception area does not satisfy the task."
+  },
+  "api_latency_s": {
+    "median": 0.8387767281383276,
+    "p95": 1.191705362778157
+  },
+  "tokens": {
+    "prompt_tokens": 161859,
+    "completion_tokens": 3859,
+    "total_tokens": 165718
+  }
+}

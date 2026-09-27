@@ -1,0 +1,24 @@
+{
+  "run": "ui-20260928-022005-2b2f3",
+  "first_room_decision_seconds": 208.614995337,
+  "room_selection_counts": {
+    "1": 6
+  },
+  "target_validation_counts": {
+    "False": 23
+  },
+  "target_room_occupancy": [
+    {
+      "target": "/World/Office/SM_TV_for_wall2",
+      "samples_inside_room": 0
+    },
+    {
+      "target": "/World/Office/SM_TV_for_wall5",
+      "samples_inside_room": 0
+    },
+    {
+      "target": "/World/Office/SM_TV_for_wall_5",
+      "samples_inside_room": 0
+    }
+  ]
+}

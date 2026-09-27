@@ -1,0 +1,97 @@
+{
+  "version": "go2-mp3d-spawn-v2",
+  "episode_id": 1051,
+  "scene": "x8F5xyUWy9e",
+  "scene_sha256": "8d3911f9d349c2964a8ecc40b699d6e14c870b14c6a42dcf2df477005b4df449",
+  "checkpoint_sha256": "59ed91b571fb821efc8ef8d4a4bb6eb5367e6ad49b29181e2c3d030eba18951a",
+  "initial_spawn": [
+    -6.597370147705078,
+    2.976069927215576,
+    1.4461080074310302
+  ],
+  "initial_yaw": -2.617993877991494,
+  "final_position": [
+    -6.580521106719971,
+    2.9158337116241455,
+    1.285058856010437
+  ],
+  "floor_rays": [
+    {
+      "distance": 0.3940085768699646,
+      "position": [
+        -6.597370147705078,
+        2.976069927215576,
+        0.9520994424819946
+      ],
+      "collision": "/World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+    },
+    {
+      "distance": 0.3944782316684723,
+      "position": [
+        -6.3973708152771,
+        3.126070022583008,
+        0.9516297578811646
+      ],
+      "collision": "/World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+    },
+    {
+      "distance": 0.39748701453208923,
+      "position": [
+        -6.397370338439941,
+        2.8260700702667236,
+        0.9486209750175476
+      ],
+      "collision": "/World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+    },
+    {
+      "distance": 0.3929125666618347,
+      "position": [
+        -6.797369956970215,
+        3.126070022583008,
+        0.9531954526901245
+      ],
+      "collision": "/World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+    },
+    {
+      "distance": 0.39537665247917175,
+      "position": [
+        -6.797369956970215,
+        2.8260698318481445,
+        0.9507312774658203
+      ],
+      "collision": "/World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+    }
+  ],
+  "settled_base_height_m": 0.3329594135284424,
+  "horizontal_drift_m": 0.062486246954678734,
+  "minimum_base_z": 1.2771031856536865,
+  "maximum_base_z": 1.4456419944763184,
+  "final_up_dot": 0.9976802958661724,
+  "maximum_tilt_degrees": 10.0,
+  "maximum_drift_m": 0.2,
+  "physics_seconds": 5.0,
+  "synthetic_floor": false,
+  "visual_review_required": true,
+  "physical_smoke_pass": true,
+  "nonfoot_contact_pairs": [
+    "/World/Go2/FR_calf/collisions/mesh_1 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/FR_calf/collisions/mesh_2 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/FL_calf/collisions/mesh_1 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/FL_calf/collisions/mesh_2 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RR_calf/collisions/mesh_1 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RR_calf/collisions/mesh_2 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RL_calf/collisions/mesh_1 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RL_calf/collisions/mesh_2 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/FR_calf/collisions/mesh_0 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/FL_calf/collisions/mesh_0 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RR_calf/collisions/mesh_0 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1",
+    "/World/Go2/RL_calf/collisions/mesh_0 | /World/MP3D/chunk000_group000_sub000/chunk000_group000_sub000_1"
+  ],
+  "nonfoot_physical_contact_pairs": [],
+  "contact_definition": {
+    "impulse_threshold_ns": 1e-05,
+    "touch_separation_m": 0.0005,
+    "rule": "physical if impulse norm exceeds threshold OR separation is at most touch tolerance"
+  },
+  "contact_quality_passed": true
+}

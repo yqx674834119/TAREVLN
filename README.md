@@ -4,6 +4,8 @@ This is the independent project workspace for A 5F → B 3F navigation. The proj
 
 ## Current stages
 
+- **Harder SysNav tests and native planning replay:** the new cross-room display task ran for 300 s and timed out after 68.1 m; the original planner's room-switching behavior remains a limitation. MP3D meshes now load in Isaac with decoded textures, static collision, original episode poses, a Go2 spawn check, and isolated scoring. See [results and reproduction](docs/sysnav-crossroom-mp3d.md). The dashboard replays actual TARE samples, obstacles, paths and waypoints.
+
 - **Physical-dog readiness goal:** active iteration with explicit simulation, perception, sensor, interface and field gates. See [current status](docs/readiness/STATUS.md). The project is not yet ready for physical motion.
 - **Estimated localization:** isolated GICP can now drive TARE from rigid-mounted virtual scans. The 120 s dense-scan development run retained accurate simulated localization but timed out on semantic confirmation; see [localization evidence and limitations](docs/readiness/localization.md).
 

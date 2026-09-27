@@ -1,0 +1,73 @@
+{
+  "status": "timeout",
+  "success": false,
+  "acceptance_passed": false,
+  "instruction": "Turn around and exit the doorway. Turn left and exit the door. Stop next to the pool. ",
+  "simulation_seconds": 119.91499731969088,
+  "wall_seconds": 970.1523291352205,
+  "distance_m": 1.919170390283585,
+  "final_position": [
+    -6.712177276611328,
+    4.232148170471191,
+    1.278060793876648
+  ],
+  "stop_dwell": null,
+  "independent_goal_region": null,
+  "independent_object_evaluation": null,
+  "evaluation_definition": "R2R-CE goal geodesic <3 m and native STOP; separate Habitat navmesh evaluator",
+  "contact_quality_passed": true,
+  "localization_evaluation": {
+    "alignment": "first pose only; evaluator private",
+    "frames": 600,
+    "translation_rmse_m": 0.0003144299269261629,
+    "maximum_translation_error_m": 0.0008802146096621627,
+    "final_translation_error_m": 0.00027503633255675556,
+    "maximum_rotation_error_deg": 0.0557967035307042,
+    "processing_p95_ms": 37.87449586670846
+  },
+  "physical_hardware_ready": false,
+  "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
+  "vlm_calls": 2,
+  "api_status": {
+    "ok": 2
+  },
+  "vlm_purposes": {
+    "process_instruction": 1,
+    "process_room_type_query": 1
+  },
+  "calls_with_images": 1,
+  "native_counts": {
+    "waypoints": 118,
+    "paths": 590,
+    "cmd_vel": 47661,
+    "candidate_sets": 0,
+    "mission_paths": 0,
+    "target_object_instruction": 2,
+    "camera": 118,
+    "detection_result": 118,
+    "room_nodes_list": 118,
+    "room_type_query": 1,
+    "viewpoint_rep_header": 1,
+    "room_navigation_query": 2,
+    "sysnav/status": 117,
+    "object_nodes_list": 228,
+    "room_type_answer": 1
+  },
+  "rooms": 1,
+  "objects": 6,
+  "isolation": {
+    "oracle_visible": false,
+    "scene_visible": false,
+    "stack": "native SysNav",
+    "instruction": "Turn around and exit the doorway. Turn left and exit the door. Stop next to the pool. "
+  },
+  "api_latency_s": {
+    "median": 15.727363963378593,
+    "p95": 15.793949924758635
+  },
+  "tokens": {
+    "prompt_tokens": 1983,
+    "completion_tokens": 53,
+    "total_tokens": 2036
+  }
+}

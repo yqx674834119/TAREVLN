@@ -1,0 +1,32 @@
+{
+  "protocol": "Isaac transfer of R2R-CE val_unseen; not official Habitat scores",
+  "episode_id": 7,
+  "scene": "x8F5xyUWy9e",
+  "original_instruction": "Go straight past the pool. Walk between the bar and chairs.  Stop when you get to the corner of the bar.  That's where you will wait. ",
+  "valid": false,
+  "projection_valid": true,
+  "protocol_completed": false,
+  "spawn_preflight_passed": false,
+  "native_stop": false,
+  "termination": "operator_stopped",
+  "dataset_geodesic_m": 10.452263832092285,
+  "initial_geodesic_m": 10.452263832092285,
+  "navmesh_sha256": "e1e8e8d367b2e722479189f49134b25d92a5b9352afc49b08f9d74f212dea75b",
+  "projection_failures": 0,
+  "maximum_horizontal_projection_m": 0.0,
+  "maximum_vertical_projection_m": 0.39739325642585754,
+  "metric_path": "all 10 Hz base samples projected onto supplied navmesh; no policy access",
+  "official_protocol_comparable": false,
+  "final_geodesic_m": 10.533361434936523,
+  "diagnostic_metrics_only": {
+    "ne_m": 10.533361434936523,
+    "sr": 0.0,
+    "osr": 0.0,
+    "path_length_m": 0.46888471817508376,
+    "spl": 0.0,
+    "ndtw_exact": 0.14091779275329455,
+    "sdtw_exact": 0.0,
+    "ndtw_fast": 0.14091779275329455,
+    "sdtw_fast": 0.0
+  }
+}

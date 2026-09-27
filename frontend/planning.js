@@ -50,7 +50,7 @@ const plannerView = (() => {
     const [rx,ry]=xy(robot),yaw=snapshot.robot.yaw;
     ctx.save();ctx.translate(rx,ry);ctx.rotate(-yaw);ctx.fillStyle='#123c68';ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(-6,-5);ctx.lineTo(-6,5);ctx.closePath();ctx.fill();ctx.restore();
     ctx.fillStyle='#64748b';ctx.font='13px sans-serif';ctx.fillText('odom / map · 1 m 网格 · 当前层',12,canvas.height-10);
-    note.textContent=`规划 ${snapshot.time.toFixed(1)} s · 可通行采样 ${free.length} · 候选视点 ${candidates.length} · 障碍点 ${obstacles.length} · waypoint ${layerPoints('waypoint').length?'已发布':'等待'}。未知区域不填色。`;
+    note.textContent=`规划 ${snapshot.time.toFixed(1)} s · 可通行采样 ${fresh(layers.free)?free.length:'无数据'} · 候选视点 ${fresh(layers.candidates)?candidates.length:'无数据'} · 障碍点 ${fresh(layers.obstacles)?obstacles.length:'无数据'} · waypoint ${layerPoints('waypoint').length?'已发布':'等待'}。未知区域不填色。`;
     return true;
   }
   document.addEventListener('DOMContentLoaded',()=>{for(const id of ['planArea','planObstacles','planPath','planWaypoints','planFollow'])document.getElementById(id).addEventListener('change',()=>drawMap(state.data,state.data?.frames[state.index]));});
