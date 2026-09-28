@@ -1,0 +1,942 @@
+{
+  "status": "timeout",
+  "success": false,
+  "acceptance_passed": false,
+  "simulation_seconds": 299.91499329637736,
+  "distance_m": 85.05669947314593,
+  "final_position": [
+    -11.003483772277832,
+    52.04746627807617,
+    0.3330831527709961
+  ],
+  "contact_quality_passed": true,
+  "localization_evaluation": {
+    "alignment": "first pose only; evaluator private",
+    "frames": 1500,
+    "translation_rmse_m": 0.05953168609082263,
+    "maximum_translation_error_m": 0.13555697049563498,
+    "final_translation_error_m": 0.13404156896669864,
+    "maximum_rotation_error_deg": 0.24618067629739515,
+    "processing_p95_ms": 84.24788881093264
+  },
+  "sensor_origin_check": {
+    "samples": 497,
+    "maximum_error_m": 2.764198340779719e-12,
+    "passed": true
+  },
+  "room_queries": {
+    "total": 21,
+    "empty": 2,
+    "first_nonempty_time": 71.11499841,
+    "candidate_ids": [
+      {
+        "time": 71.11499841,
+        "ids": [
+          2
+        ]
+      },
+      {
+        "time": 157.314996483,
+        "ids": [
+          1,
+          2
+        ]
+      },
+      {
+        "time": 210.314995299,
+        "ids": [
+          1,
+          2,
+          5
+        ]
+      },
+      {
+        "time": 213.314995232,
+        "ids": [
+          1,
+          2,
+          5
+        ]
+      },
+      {
+        "time": 216.314995164,
+        "ids": [
+          1,
+          2,
+          5
+        ]
+      },
+      {
+        "time": 219.314995097,
+        "ids": [
+          1,
+          2,
+          5
+        ]
+      },
+      {
+        "time": 256.414994268,
+        "ids": [
+          1,
+          2,
+          8
+        ]
+      },
+      {
+        "time": 259.314994203,
+        "ids": [
+          1,
+          2,
+          8
+        ]
+      },
+      {
+        "time": 262.314994136,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 271.314993935,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 274.314993868,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 277.314993801,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 280.314993734,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 283.214993669,
+        "ids": [
+          1,
+          2,
+          6
+        ]
+      },
+      {
+        "time": 286.3149936,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 289.514993528,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 292.314993466,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      },
+      {
+        "time": 295.114993403,
+        "ids": [
+          1,
+          2,
+          6
+        ]
+      },
+      {
+        "time": 298.314993332,
+        "ids": [
+          1,
+          2,
+          6,
+          8
+        ]
+      }
+    ]
+  },
+  "room_answers": [
+    {
+      "topic": "/room_navigation_answer",
+      "time": 71.314998405,
+      "room_id": 2,
+      "answer_type": 0,
+      "anchor": [
+        6.631016254425049,
+        -0.7471346259117126,
+        0.7732961885879249
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 144.314996774,
+      "room_id": 3,
+      "answer_type": 1,
+      "anchor": [
+        -6.9624104499816895,
+        22.208282470703125,
+        0.7736371754189333
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 199.314995544,
+      "room_id": 7,
+      "answer_type": 1,
+      "anchor": [
+        1.040596604347229,
+        28.31328010559082,
+        0.7721719681716486
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 210.614995292,
+      "room_id": 5,
+      "answer_type": 0,
+      "anchor": [
+        -7.8402323722839355,
+        25.074594497680664,
+        0.777749521313784
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 213.614995225,
+      "room_id": 5,
+      "answer_type": 0,
+      "anchor": [
+        -7.8402323722839355,
+        25.074594497680664,
+        0.777749521313784
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 216.614995158,
+      "room_id": 5,
+      "answer_type": 0,
+      "anchor": [
+        -7.8402323722839355,
+        25.074594497680664,
+        0.777749521313784
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 219.714995088,
+      "room_id": 5,
+      "answer_type": 0,
+      "anchor": [
+        -7.8402323722839355,
+        25.074594497680664,
+        0.777749521313784
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 259.714994194,
+      "room_id": 1,
+      "answer_type": 0,
+      "anchor": [
+        -4.997613906860352,
+        18.89990997314453,
+        0.7790077190180034
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 262.61499413,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        0.07635051012039185,
+        23.09819984436035,
+        0.7781454534885922
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 271.714993926,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        0.21971337497234344,
+        22.986690521240234,
+        0.7770170572215324
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 274.514993864,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        0.5681588053703308,
+        22.707504272460938,
+        0.773317682413299
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 277.514993797,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        1.065265417098999,
+        22.64244842529297,
+        0.7714052030543654
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 280.51499373,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        1.6192398071289062,
+        22.75804901123047,
+        0.7739713100257084
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 283.414993665,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.112272262573242,
+        22.775123596191406,
+        0.7726050531279642
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 286.514993595,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.420679807662964,
+        22.78717803955078,
+        0.7717863519447435
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 289.914993519,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.420679807662964,
+        22.78717803955078,
+        0.7717863519447435
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 292.614993459,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.420679807662964,
+        22.78717803955078,
+        0.7717863519447435
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 295.414993396,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.420679807662964,
+        22.78717803955078,
+        0.7717863519447435
+      ]
+    },
+    {
+      "topic": "/room_navigation_answer",
+      "time": 298.514993327,
+      "room_id": 6,
+      "answer_type": 0,
+      "anchor": [
+        2.420679807662964,
+        22.78717803955078,
+        0.7717863519447435
+      ]
+    }
+  ],
+  "first_selection_followup": {
+    "room_id": 2,
+    "answer_type": 0,
+    "answer_time": 71.314998405,
+    "last_time": 144.21499677654356,
+    "initial_anchor_distance_m": 6.652782029219523,
+    "minimum_anchor_distance_m": 6.652782029219523,
+    "final_anchor_distance_m": 22.844076728708067,
+    "note": "Distance to the returned observation anchor, not an oracle goal or proof that native transit was activated."
+  },
+  "early_stop": {
+    "enabled": true,
+    "queries": [
+      {
+        "topic": "/room_early_stop_1",
+        "time": 144.114996778,
+        "nearby": 3,
+        "current": 1,
+        "enter_wrong_room": false,
+        "nearby_anchor": [
+          -6.9624104499816895,
+          22.208282470703125,
+          0.7736371754189333
+        ]
+      },
+      {
+        "topic": "/room_early_stop_1",
+        "time": 198.114995571,
+        "nearby": 7,
+        "current": 5,
+        "enter_wrong_room": false,
+        "nearby_anchor": [
+          0.8033472299575806,
+          28.376508712768555,
+          0.7749081711243541
+        ]
+      },
+      {
+        "topic": "/room_early_stop_1",
+        "time": 199.014995551,
+        "nearby": 7,
+        "current": 5,
+        "enter_wrong_room": false,
+        "nearby_anchor": [
+          1.040596604347229,
+          28.31328010559082,
+          0.7721719681716486
+        ]
+      },
+      {
+        "topic": "/room_early_stop_1",
+        "time": 272.114993917,
+        "nearby": 6,
+        "current": 5,
+        "enter_wrong_room": false,
+        "nearby_anchor": [
+          0.2773169279098511,
+          22.91075325012207,
+          0.7747987570680641
+        ]
+      },
+      {
+        "topic": "/room_early_stop_1",
+        "time": 273.114993895,
+        "nearby": 6,
+        "current": 5,
+        "enter_wrong_room": false,
+        "nearby_anchor": [
+          0.44949135184288025,
+          22.753597259521484,
+          0.7730991467777052
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "time": 144.214996776,
+        "status": "ok",
+        "early_stop": true,
+        "latency_wall_seconds": 1.1063162977807224
+      },
+      {
+        "time": 198.214995569,
+        "status": "ok",
+        "early_stop": false,
+        "latency_wall_seconds": 0.8499001641757786
+      },
+      {
+        "time": 199.114995549,
+        "status": "ok",
+        "early_stop": true,
+        "latency_wall_seconds": 0.9092244310304523
+      },
+      {
+        "time": 272.214993915,
+        "status": "ok",
+        "early_stop": false,
+        "latency_wall_seconds": 0.8631718941032887
+      },
+      {
+        "time": 273.214993893,
+        "status": "ok",
+        "early_stop": false,
+        "latency_wall_seconds": 1.1045601107180119
+      }
+    ],
+    "type1_dispatches": [
+      {
+        "topic": "/room_navigation_answer",
+        "time": 144.314996774,
+        "room_id": 3,
+        "answer_type": 1,
+        "anchor": [
+          -6.9624104499816895,
+          22.208282470703125,
+          0.7736371754189333
+        ]
+      },
+      {
+        "topic": "/room_navigation_answer",
+        "time": 199.314995544,
+        "room_id": 7,
+        "answer_type": 1,
+        "anchor": [
+          1.040596604347229,
+          28.31328010559082,
+          0.7721719681716486
+        ]
+      }
+    ],
+    "note": "Type 1 also carries wrong-room recovery; inspect query and decision timelines before attributing it to an early-stop decision."
+  },
+  "current_room_transitions": [
+    {
+      "time": 3.414999923668802,
+      "room_id": 1
+    },
+    {
+      "time": 154.51499654632062,
+      "room_id": 5
+    },
+    {
+      "time": 207.41499536391348,
+      "room_id": 7
+    },
+    {
+      "time": 247.31499447207898,
+      "room_id": 5
+    }
+  ],
+  "transition_edge_history": [
+    {
+      "from_room": 1,
+      "to_room": 5,
+      "transition_time": 154.51499654632062,
+      "changes": [
+        {
+          "time": 154.914996537,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        }
+      ]
+    },
+    {
+      "from_room": 5,
+      "to_room": 7,
+      "transition_time": 207.41499536391348,
+      "changes": [
+        {
+          "time": 207.914995352,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 210.914995285,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 212.91499524,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 221.914995039,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 222.914995017,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 225.91499495,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 226.914994928,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 230.914994838,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 231.914994816,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 234.914994749,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 235.914994726,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 236.914994704,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 237.914994682,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 257.914994235,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 258.914994212,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 278.914993765,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 279.914993743,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 280.914993721,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 281.914993698,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 282.914993676,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 283.914993654,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 290.914993497,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 291.914993475,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 295.114993403,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 295.914993385,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        }
+      ]
+    },
+    {
+      "from_room": 7,
+      "to_room": 5,
+      "transition_time": 247.31499447207898,
+      "changes": [
+        {
+          "time": 247.914994458,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 257.914994235,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 258.914994212,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 278.914993765,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 279.914993743,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 280.914993721,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 281.914993698,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 282.914993676,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 283.914993654,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 290.914993497,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 291.914993475,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        },
+        {
+          "time": 295.114993403,
+          "both_ids_present": true,
+          "bidirectional_edge_present": false,
+          "graph_path_exists": false
+        },
+        {
+          "time": 295.914993385,
+          "both_ids_present": true,
+          "bidirectional_edge_present": true,
+          "graph_path_exists": true
+        }
+      ]
+    }
+  ],
+  "transition_edge_note": "Native room-ID transitions and graph changes, not oracle-labelled doors. Re-segmentation can also change the reported room ID.",
+  "room_snapshots": {
+    "count": 297,
+    "last": {
+      "topic": "/room_nodes_list",
+      "time": 298.914993318,
+      "rooms": [
+        {
+          "id": 1,
+          "area": 356.8500061035156,
+          "neighbors": [
+            2,
+            5
+          ],
+          "connected": true,
+          "centroid": [
+            -4.506640911102295,
+            6.889105796813965,
+            0.7738866806030273
+          ]
+        },
+        {
+          "id": 2,
+          "area": 17.170000076293945,
+          "neighbors": [
+            1
+          ],
+          "connected": true,
+          "centroid": [
+            9.244209289550781,
+            -0.1253349483013153,
+            0.7738866806030273
+          ]
+        },
+        {
+          "id": 5,
+          "area": 92.99000549316406,
+          "neighbors": [
+            1,
+            6,
+            7
+          ],
+          "connected": true,
+          "centroid": [
+            -6.172558307647705,
+            25.629743576049805,
+            0.7738866806030273
+          ]
+        },
+        {
+          "id": 6,
+          "area": 23.200000762939453,
+          "neighbors": [
+            5
+          ],
+          "connected": true,
+          "centroid": [
+            5.459225654602051,
+            22.659658432006836,
+            0.7738866806030273
+          ]
+        },
+        {
+          "id": 7,
+          "area": 20.060001373291016,
+          "neighbors": [
+            5,
+            8
+          ],
+          "connected": true,
+          "centroid": [
+            3.2096216678619385,
+            28.0715389251709,
+            0.7738866806030273
+          ]
+        },
+        {
+          "id": 8,
+          "area": 14.24000072479248,
+          "neighbors": [
+            7
+          ],
+          "connected": true,
+          "centroid": [
+            12.145648956298828,
+            28.30181884765625,
+            0.7738866806030273
+          ]
+        }
+      ]
+    }
+  },
+  "target_room_entries": [
+    {
+      "target": "/World/Office/SM_TV_for_wall2",
+      "samples": 0,
+      "first_time": null
+    },
+    {
+      "target": "/World/Office/SM_TV_for_wall5",
+      "samples": 0,
+      "first_time": null
+    },
+    {
+      "target": "/World/Office/SM_TV_for_wall_5",
+      "samples": 0,
+      "first_time": null
+    }
+  ],
+  "observed_topics": {
+    "/target_object_instruction": 2,
+    "/detection_result": 298,
+    "/room_nodes_list": 297,
+    "/room_type_query": 129,
+    "/viewpoint_rep_header": 16,
+    "/room_type_answer": 129,
+    "/room_navigation_query": 21,
+    "/object_nodes_list": 415,
+    "/room_navigation_answer": 19,
+    "/object_type_query": 17,
+    "/object_type_answer": 17,
+    "/target_object_spatial_query": 6,
+    "/target_object_answer": 6,
+    "/room_early_stop_1": 5
+  },
+  "checked_archive_sha256": {
+    "sim/sysnav_sensor_bridge.py": "5531e8a885705871d8b502cb6a556689d74afb8a658955da02566ebe6ed31d4e",
+    "sim/sysnav_full_worker.py": "24fc1887d810f7f9228c42ecede70fb18640570231d929733d96946386f49c7a",
+    "src/vln_core/sysnav_sensor_contract.py": "78edda92bcd214427d2e5dbdae5a20ff4074e2a2a4fba4c643cd976ef0750998",
+    "config/sysnav-full-ros.yaml": "f4dc12036d0afa0f933b8a8ede0d6ff030a1c1d12747cc491e5428fb00f76daf"
+  },
+  "interpretation": "Single-run diagnostics; system repairs were bundled, so no per-fix causal attribution."
+}

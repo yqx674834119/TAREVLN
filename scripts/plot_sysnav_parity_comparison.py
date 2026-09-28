@@ -21,7 +21,8 @@ def trajectory(folder):
 
 fig,axes=plt.subplots(1,2,figsize=(12,9),constrained_layout=True)
 targets=json.loads((ROOT/'sim/fixtures/sysnav-object-evaluation.json').read_text())['tasks']['meeting_crossroom']['targets']
-for ax,folder,title,color in zip(axes,[original,args.run],['Before system alignment','After system alignment'],['#64748b','#2563eb']):
+after_title='Aligned + explicit early-stop repair' if report.get('room_early_stop_enabled') else 'After system alignment'
+for ax,folder,title,color in zip(axes,[original,args.run],['Before system alignment',after_title],['#64748b','#2563eb']):
     for scan in sorted(folder.glob('scan_*.npz'))[::50]:
         points=np.load(scan)['points']
         points=points[(points[:,2]>.2)&(points[:,2]<1.4)]
@@ -44,7 +45,7 @@ for ax,folder,title,color in zip(axes,[original,args.run],['Before system alignm
     ax.set_aspect('equal');ax.grid(alpha=.15)
 axes[1].legend(loc='upper left',fontsize=8)
 fig.suptitle('Same Office, start, task, Go2 checkpoint and 300 s budget',fontsize=14)
-fig.supxlabel('Evaluator view only. Green route proves physical reachability; it is not autonomous success.',fontsize=10)
+fig.supxlabel('Evaluator view only. Green: physical oracle control. Bundled repairs, not a single-factor ablation.',fontsize=10)
 out=args.run/'review';out.mkdir(exist_ok=True)
 fig.savefig(out/'system-parity-comparison.png',dpi=160)
 plt.close(fig)
@@ -86,3 +87,33 @@ for ax,t in zip(axes,[75.5,index[-1]['time']]):
     ax.set_aspect('equal');ax.grid(alpha=.1);ax.legend(fontsize=8)
 fig.supxlabel('Recorded native masks and messages only. White means unlabeled; no goal truth is shown.',fontsize=10)
 fig.savefig(out/'native-room-state.png',dpi=160)
+plt.close(fig)
+
+# Received semantic decisions are distinct from the planner's executed room.
+trace=[json.loads(s) for s in (args.run/'trajectory.jsonl').read_text().splitlines()]
+answers=[r for r in events if r['topic']=='/room_navigation_answer']
+fig,axes=plt.subplots(2,1,figsize=(11,6.5),sharex=True,constrained_layout=True)
+if answers:
+    first=answers[0]
+    end=next((r['time'] for r in answers[1:] if r['room_id']!=first['room_id']),index[-1]['time'])
+    selected=[r for r in index if first['time']<=r['time']<=end]
+    if selected:
+        distance=[np.linalg.norm(np.array(r['robot']['position'][:2])-first['anchor'][:2]) for r in selected]
+        axes[0].plot([r['time'] for r in selected],distance,color='#2563eb',lw=2,
+                     label=f"Distance to first selected room {first['room_id']} anchor")
+        axes[0].legend(loc='upper left',fontsize=9)
+axes[0].set(ylabel='Anchor distance (m)',title='Semantic answer delivery versus executed room state')
+samples=[r for r in trace if 'room_id' in r.get('action',{}).get('sysnav',{})]
+axes[1].step([r['time'] for r in samples],[r['action']['sysnav']['room_id'] for r in samples],
+             where='post',color='#0f766e',lw=2,label='Native current_room_id')
+for answer in answers:
+    color='#c2410c' if answer['answer_type']==1 else '#64748b'
+    for ax in axes:ax.axvline(answer['time'],color=color,ls='--',alpha=.6)
+    axes[1].annotate(f"type {answer['answer_type']} -> R{answer['room_id']}",
+                     xy=(answer['time'],1),xycoords=('data','axes fraction'),xytext=(4,-9),
+                     textcoords='offset points',fontsize=8,rotation=90,va='top',color=color)
+axes[1].set(xlabel='Simulation time (s)',ylabel='Native room ID')
+axes[1].legend(loc='lower right',fontsize=9)
+for ax in axes:ax.grid(alpha=.15)
+fig.supxlabel('Native messages only. Room IDs may change during segmentation; they are not ground-truth room identities.',fontsize=9)
+fig.savefig(out/'room-decision-execution.png',dpi=160)

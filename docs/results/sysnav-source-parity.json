@@ -2,7 +2,7 @@
   "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
   "source_review_passed": true,
   "configuration_inheritance_passed": true,
-  "reviewed_changed_files": 16,
+  "reviewed_changed_files": 17,
   "byte_identical_source_directories": [
     "src/exploration_planner/tare_planner/src/room_segmentation",
     "src/exploration_planner/tare_planner/src/representation",
@@ -47,5 +47,6 @@
       "vis_interval",
       "visualize"
     ]
-  }
+  },
+  "intentional_early_stop_intervention": true
 }

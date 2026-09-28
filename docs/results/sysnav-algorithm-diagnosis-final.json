@@ -1,0 +1,49 @@
+{
+  "run": "sysnav-early-stop-crossroom-001",
+  "status": "timeout",
+  "simulation_seconds": 299.91499329637736,
+  "task_success": false,
+  "system_audit": {
+    "source_review_passed": true,
+    "configuration_inheritance_passed": true,
+    "runtime_contract_passed": true,
+    "sensor_origin_max_error_m": 2.764198340779719e-12,
+    "nonfoot_physical_contact_pairs": [],
+    "localization_translation_rmse_m": 0.05953168609082263
+  },
+  "target_reachability": {
+    "oracle_control_run": "crossroom-reachability-r3",
+    "qualified_goal_reachable": true,
+    "oracle_route_seconds": 46.914999,
+    "oracle_route_distance_m": 13.36315,
+    "autonomous_target_room_samples": {
+      "SM_TV_for_wall2": 0,
+      "SM_TV_for_wall5": 0,
+      "SM_TV_for_wall_5": 0
+    }
+  },
+  "functional_chain": {
+    "early_stop_enabled": true,
+    "early_stop_decisions": 5,
+    "type1_room_dispatches": 2,
+    "room_transitions": [[1, 5], [5, 7], [7, 5]],
+    "target_space_queries": 6,
+    "target_space_false_answers": 6,
+    "detector_and_vlm_chain_reached": true
+  },
+  "algorithm_findings": [
+    {
+      "finding": "Room adjacency is rebuilt from the current door mask and edges are not persistent.",
+      "evidence": "The observed 5-7 edge repeatedly appeared and disappeared after the 5-to-7 transition; the planner logged No path found from current room to target room.",
+      "source_scope": "Pinned SysNav room_segmentation and TARE behavior, not Isaac-only code.",
+      "next_experiment": "Single-variable persistent verified-edge memory with confidence and expiry; no oracle doors or target waypoints."
+    },
+    {
+      "finding": "Room IDs and visual room labels are not stable identities across frames.",
+      "evidence": "The native current room changed 1, 5, 7, 5 while room labels changed for repeated views; target regions were never entered.",
+      "source_scope": "Pinned SysNav room graph and room classification lifecycle.",
+      "next_experiment": "Geometry-door-anchor-visual identity association before comparing room-selection policies."
+    }
+  ],
+  "conclusion": "After recorded system adaptations and audits pass, the remaining failure is first attributable to native room-graph/state-machine efficiency, not a missing TARE node, sensor-origin mismatch, collision, or VLM provider choice."
+}
