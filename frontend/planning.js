@@ -24,8 +24,9 @@ const plannerView = (() => {
     const layerPoints=k=>fresh(layers[k])?layers[k].points:[];
     const free=layerPoints('free'),candidates=layerPoints('candidates'),obstacles=layerPoints('obstacles');
     const room=snapshot.room_mask;
-    const roomBounds=room?[room.origin[0],room.origin[0]+room.width*room.resolution[0],
-                            room.origin[1],room.origin[1]+room.height*room.resolution[1]]:null;
+    // Native room-mask rows represent X; columns represent Y.
+    const roomBounds=room?[room.origin[0],room.origin[0]+room.height*room.resolution[0],
+                            room.origin[1],room.origin[1]+room.width*room.resolution[1]]:null;
     const extent=checked('planFollow')?[robot[0]-6,robot[0]+6,robot[1]-6,robot[1]+6]:(()=>{
       const points=[robot,...snapshot.trail,...free,...candidates];
       const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
