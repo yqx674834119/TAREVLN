@@ -31,11 +31,15 @@ TASKS = {key:value[1] for key,value in PUBLIC_TASKS.items()}
 
 
 class Bridge(SensorBridge):
-    def __init__(self, output, source):
+    def __init__(self, output, source, config):
         super().__init__()
         self.images = self.create_publisher(Image, '/camera/image', 5)
         self.keyboard = self.create_publisher(String, '/keyboard_input', 5)
         self.cv = CvBridge()
+        self.visual_dir = output/'visuals'
+        self.visual_dir.mkdir(parents=True, exist_ok=True)
+        self.visual_index = (output/'visuals.jsonl').open('w', buffering=1)
+        self.visual_seen = set()
         self.events = (output/'events.jsonl').open('w', buffering=1)
         self.counts = Counter(self.counts)
         self.status, self.instruction = {}, None
@@ -43,7 +47,8 @@ class Bridge(SensorBridge):
         self.supported_labels={p for value in vocabulary['prompts'].values() for p in value['prompts']}-{'unknown'}
         self.instruction_contract_error=None
         self.objects, self.rooms = {}, {}
-        self.planning=PlanningRecorder(self,output)
+        room_config=yaml.safe_load(config.read_text())['room_segmentation']['ros__parameters']
+        self.planning=PlanningRecorder(self,output,room_config)
         self.sensor_adapter=SensorObservationAdapter()
         for topic, kind in [
             ('/room_nodes_list',RoomNodeList), ('/object_nodes_list',ObjectNodeList),
@@ -57,6 +62,39 @@ class Bridge(SensorBridge):
             ('/anchor_object_query',TargetObject), ('/anchor_object_answer',TargetObject),
             ('/viewpoint_rep_header',ViewpointRep), ('/sysnav/status',String)]:
             self.create_subscription(kind,topic,lambda msg,t=topic:self.record(t,msg),50)
+        # These are native semantic_mapping outputs.  Keeping them as image
+        # artifacts lets the dashboard show exactly what YOLO and SAM saw,
+        # without running a second detector in the UI process.
+        self.create_subscription(Image, '/annotated_image_detection',
+                                 lambda msg:self.record_visual('yolo', msg), 10)
+        self.create_subscription(Image, '/annotated_image',
+                                 lambda msg:self.record_visual('sam', msg), 10)
+
+    def record_visual(self, kind, msg):
+        try:
+            received = self.get_clock().now().nanoseconds/1e9
+            t = msg.header.stamp.sec + msg.header.stamp.nanosec/1e9
+            name = f'{kind}-{int(round(t*1000)):010d}.jpg'
+            if name in self.visual_seen:return
+            image = self.cv.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            if image is None or image.ndim != 3 or image.shape[2] != 3:
+                return
+            path = self.visual_dir/name
+            ok, encoded = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+            if not ok:return
+            temporary=path.with_suffix('.tmp')
+            temporary.write_bytes(encoded.tobytes())
+            temporary.replace(path)
+            row = {'kind':kind, 'topic':'/annotated_image_detection' if kind == 'yolo' else '/annotated_image',
+                   'time':float(t), 'received_time':received, 'file':str(Path('visuals')/name),
+                   'width':int(image.shape[1]), 'height':int(image.shape[0])}
+            self.visual_index.write(json.dumps(row, separators=(',',':'))+'\n')
+            self.visual_seen.add(name)
+            self.counts[kind+'_frames']+=1
+        except (OSError, ValueError, TypeError, cv2.error) as error:
+            # Visualization is observational and must never stop navigation.
+            self.get_logger().warning(f'Cannot record {kind} image: {type(error).__name__}')
+            return
 
     def record(self, topic, msg):
         key=topic.strip('/')
@@ -87,7 +125,12 @@ class Bridge(SensorBridge):
                         self.objects.pop(oid,None)
             row['objects']=list(self.objects.values())
         elif topic=='/detection_result':
-            row.update(labels=list(msg.label),ids=list(msg.track_id),stamp=msg.header.stamp.sec+msg.header.stamp.nanosec/1e9)
+            boxes=[]
+            for x1,y1,x2,y2 in zip(msg.x1,msg.y1,msg.x2,msg.y2):
+                boxes.append([float(x1),float(y1),float(x2),float(y2)])
+            row.update(labels=list(msg.label),ids=list(msg.track_id),boxes=boxes,
+                       confidence=[float(x) for x in msg.confidence],
+                       stamp=msg.header.stamp.sec+msg.header.stamp.nanosec/1e9)
         elif isinstance(msg,TargetObject):
             row.update(id=msg.object_id,label=msg.object_label,is_target=msg.is_target)
         elif isinstance(msg,RoomType):
@@ -138,8 +181,9 @@ def main():
     (args.output/'isolation.json').write_text(json.dumps({'oracle_visible':False,'scene_visible':False,'stack':'native SysNav','instruction':instruction}))
     children,logs=[],[]
     rclpy.init()
-    bridge=Bridge(args.output,args.source)
-    threading.Thread(target=rclpy.spin,args=(bridge,),daemon=True).start()
+    bridge=Bridge(args.output,args.source,args.config)
+    spin_thread=threading.Thread(target=rclpy.spin,args=(bridge,),daemon=True)
+    spin_thread.start()
     try:
         specs=[('sensor_scan_generation','sensorScanGeneration'),('tare_planner','navigationBoundary'),
                ('tare_planner','tare_planner_node'),('tare_planner','room_segmentation'),
@@ -207,6 +251,8 @@ def main():
             except subprocess.TimeoutExpired:p.kill();p.wait()
         for log in logs:log.close()
         if rclpy.ok():rclpy.shutdown()
+        spin_thread.join(timeout=5)
+        bridge.visual_index.close()
 
 
 if __name__=='__main__':main()

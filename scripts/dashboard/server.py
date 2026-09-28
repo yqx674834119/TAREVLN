@@ -7,6 +7,7 @@ import mimetypes
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -16,6 +17,9 @@ from urllib.parse import parse_qs, quote, urlparse
 import uuid
 import math
 import re
+
+
+API_PROXY_DEFAULT = 'http://127.0.0.1:18119'
 
 PROJECT = Path(__file__).resolve().parents[2]
 ROOT = PROJECT.parent
@@ -55,6 +59,7 @@ def public_decision(value):
 class Console:
     def __init__(self, root=ROOT, project=PROJECT):
         self.root, self.project = Path(root), Path(project)
+        self.api_proxy = os.environ.get('VLN_API_PROXY', API_PROXY_DEFAULT)
         self.jobs = {}
         self.records = {}
         self.lock = threading.Lock()
@@ -66,6 +71,30 @@ class Console:
                 for e in json.load(f)['episodes']:
                     if e['scene_id'].split('/')[1] == 'x8F5xyUWy9e':
                         self.episodes[str(e['episode_id'])] = e
+
+    def ensure_api_relay(self):
+        """Fail before Isaac starts when the remote-to-local relay is absent.
+
+        The 5090 host cannot complete DeepSeek TLS directly. The relay is a
+        loopback endpoint reached through an SSH reverse forward established
+        by the operator on the workstation. Launching a simulation without it
+        only produces delayed APIConnectionError messages in the VLM node.
+        """
+        endpoint = urlparse(self.api_proxy)
+        if (endpoint.scheme != 'http' or endpoint.hostname != '127.0.0.1'
+                or endpoint.port != 18119 or endpoint.username
+                or endpoint.password or endpoint.path or endpoint.query
+                or endpoint.fragment):
+            raise ValueError('VLN_API_PROXY must be http://127.0.0.1:18119')
+        try:
+            with socket.create_connection((endpoint.hostname, endpoint.port), timeout=1.5):
+                return
+        except OSError:
+            raise ValueError(
+                'DeepSeek relay unavailable at 127.0.0.1:18119. Start the local relay and SSH reverse tunnel: '
+                'python3 scripts/api_connect_relay.py; '
+                'ssh -fN -o ExitOnForwardFailure=yes -R '
+                '127.0.0.1:18119:127.0.0.1:18119 5090') from None
 
     def catalog(self):
         return dict(tasks=[dict(id='sysnav:'+k,kind='office',title=v[0],instruction=v[1],
@@ -163,7 +192,100 @@ class Console:
         for r in entries:
             points=r.get('waypoint')
             if points and (not history or points[0]!=history[-1]):history.append(points[0])
-        return dict(available=True,**result,trail=trail[::max(1,len(trail)//1500)],waypoint_history=history[-250:])
+        return dict(available=True,**result,trail=trail[::max(1,len(trail)//1500)],
+                    waypoint_history=history[-250:],
+                    **self.room_state(record, entries, result.get('time', timestamp)))
+
+    def room_state(self, record, entries, timestamp):
+        """Return downsampled native /room_mask data and room-node labels.
+
+        The ROS mask is a 0.1 m odometry-grid image.  It is intentionally
+        cropped and sampled here so the browser never receives the 3000x3000
+        source image.  No evaluator scene or goal files are read.
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            np = None
+        planning_root = record['path']/'agent/planning'
+        mask_rows=[row for row in entries if row.get('room_mask_file')]
+        if not mask_rows:
+            # Older records wrote the NPZ but omitted its name from index.jsonl.
+            # Recover that observational artifact by its stamped filename.
+            for candidate in planning_root.glob('rooms-*.npz'):
+                match=re.fullmatch(r'rooms-(\d{10})\.npz',candidate.name)
+                if match:
+                    t=int(match.group(1))/1000
+                    if t<=timestamp+.001:mask_rows.append({'time':t,'room_mask_file':candidate.name})
+        mask_info=None
+        source_mask=None
+        mask_resolution=.1
+        mask_origin=None
+        if mask_rows and np is not None:
+            row=max(mask_rows,key=lambda item:item['time'])
+            name=row.get('room_mask_file','')
+            if re.fullmatch(r'rooms-\d{10}\.npz',name):
+                path=planning_root/name
+                if path.is_file() and not path.is_symlink():
+                    try:
+                        with np.load(path,allow_pickle=False) as data:
+                            source_mask=np.asarray(data['mask'])
+                            if 'resolution' in data:
+                                mask_resolution=float(np.asarray(data['resolution']).reshape(-1)[0])
+                            if 'origin' in data:
+                                values=np.asarray(data['origin']).reshape(-1)
+                                if len(values)>=2:mask_origin=[float(values[0]),float(values[1])]
+                        if source_mask.ndim==2 and source_mask.size<=20_000_000:
+                            source_mask=source_mask.astype(np.int32,copy=False)
+                    except (OSError,ValueError,KeyError):
+                        source_mask=None
+        if source_mask is not None:
+            valid=source_mask>0
+            rr,cc=np.nonzero(valid)
+            if len(rr):
+                # Coordinates follow the native room-segmentation shift.
+                r0,r1=max(0,int(rr.min())-4),min(source_mask.shape[0],int(rr.max())+5)
+                c0,c1=max(0,int(cc.min())-4),min(source_mask.shape[1],int(cc.max())+5)
+                max_side=280
+                nr=min(max_side,r1-r0); nc=min(max_side,c1-c0)
+                rows=np.linspace(r0,r1-1,nr,dtype=np.int32)
+                cols=np.linspace(c0,c1-1,nc,dtype=np.int32)
+                sampled=source_mask[np.ix_(rows,cols)]
+                room_info=max(mask_rows,key=lambda item:item['time'])
+                mask_origin=mask_origin or [-source_mask.shape[0]*mask_resolution/2,
+                                             -source_mask.shape[1]*mask_resolution/2]
+                mask_info=dict(time=room_info['time'],ids=sampled.tolist(),
+                    width=int(nc),height=int(nr),
+                    origin=[mask_origin[0]+r0*mask_resolution,
+                            mask_origin[1]+c0*mask_resolution],
+                    resolution=[(r1-r0)/max(nr,1)*mask_resolution,
+                                (c1-c0)/max(nc,1)*mask_resolution],
+                    source_shape=[int(source_mask.shape[0]),int(source_mask.shape[1])],
+                    source='/room_mask',nonzero_ids=sorted(int(x) for x in np.unique(sampled) if x>0))
+        events=read_lines(record['path']/'agent/events.jsonl')
+        room_snapshots=[e for e in events if e.get('topic')=='/room_nodes_list' and e.get('time',0)<=timestamp+.001]
+        rooms=[]
+        if room_snapshots:
+            rooms=[dict(room) for room in room_snapshots[-1].get('rooms',[])]
+        labels={}
+        for event in events:
+            if event.get('topic')=='/room_type_answer' and event.get('time',0)<=timestamp+.001:
+                if event.get('id') is not None and event.get('label'):
+                    labels[str(event['id'])]=event['label']
+        for room in rooms:
+            if str(room.get('id')) in labels:room['label']=labels[str(room['id'])]
+        current_id=None
+        if mask_info and rooms:
+            robot=(max(entries,key=lambda item:item['time']).get('robot') or {}).get('position',[])
+            if len(robot)>=2:
+                origin=mask_origin or [-source_mask.shape[0]*mask_resolution/2,
+                                       -source_mask.shape[1]*mask_resolution/2]
+                x=int(round((robot[0]-origin[0])/mask_resolution))
+                y=int(round((robot[1]-origin[1])/mask_resolution))
+                if 0<=x<source_mask.shape[0] and 0<=y<source_mask.shape[1]:
+                    value=int(source_mask[x,y])
+                    current_id=value if value>0 else None
+        return dict(room_mask=mask_info,rooms=rooms,current_room_id=current_id)
 
     def detail(self, identifier):
         r = self.record(identifier)
@@ -183,8 +305,25 @@ class Console:
                 front = p/f'rgb_{index:07d}_0.jpg'
                 if report.get('mode','').startswith('sysnav_full'):
                     front = p/f'panorama_{index:07d}.jpg'
-                frames.append(dict(t=round(index*.005+.015,3),chase=self.image_url(r,path),
-                                   rgb=self.image_url(r,front) if front.exists() else None))
+                frame=dict(t=round(index*.005+.015,3),chase=self.image_url(r,path),
+                           rgb=self.image_url(r,front) if front.exists() else None)
+                frames.append(frame)
+            visuals=read_lines(p/'agent/visuals.jsonl')
+            for frame in frames:
+                for kind in ('yolo','sam'):
+                    candidates=[v for v in visuals if v.get('kind')==kind and
+                                0<=v.get('time',-1)<=frame['t']+.35 and
+                                abs(v.get('time',-1)-frame['t'])<=1.5]
+                    if not candidates:continue
+                    visual=max(candidates,key=lambda v:v['time'])
+                    # Paths in this index are relative to the isolated agent output.
+                    relative=visual.get('file','')
+                    if not re.fullmatch(r'visuals/(yolo|sam)-\d{10}\.jpg',relative):continue
+                    visual_path=p/'agent'/relative
+                    if not visual_path.is_file() or visual_path.is_symlink():continue
+                    frame[kind]=self.image_url(r,visual_path)
+                    frame[kind+'_meta']=dict(time=visual['time'],topic=visual['topic'],
+                                             age=round(frame['t']-visual['time'],3))
             for path in sorted((p/'agent/vlm').glob('call-*/response.json')):
                 d = read_json(path)
                 context = d.get('context',{})
@@ -260,7 +399,7 @@ class Console:
                 raise ValueError('Full SysNav models or Go2 checkpoint unavailable')
             command=base+[str(self.root/'envs/isaac51/bin/python'),'-u','sim/run_sysnav_full.py',
                 '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
-                '--odometry','gicp','--lidar-profile','uniform64','--api-proxy','http://127.0.0.1:18119']
+                '--odometry','gicp','--lidar-profile','uniform64','--api-proxy',self.api_proxy]
             if task_id=='sysnav:meeting_crossroom':command+=['--api-budget','600']
             record_path=self.project/'data/sim/office/runs'/name
             return command,record_path,'office:'+name,record_path
@@ -273,7 +412,7 @@ class Console:
             command = base+[str(self.root/'envs/isaac51/bin/python'),'-u','sim/run_office.py',
                 '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
                 '--odometry','gicp','--gicp-correspondence','.5','--lidar-profile','uniform64',
-                '--sam','--surface-geometry','metric_plane','--api-proxy','http://127.0.0.1:18119']
+                '--sam','--surface-geometry','metric_plane','--api-proxy',self.api_proxy]
             record_path = self.project/'data/sim/office/runs'/name
             return command, record_path, 'office:'+name, record_path
         if task_id.startswith('habitat:') and task_id[8:] in self.episodes:
@@ -288,6 +427,7 @@ class Console:
         with self.lock:
             if any(j['process'].poll() is None for j in self.jobs.values()):
                 raise ValueError('A dashboard simulation is already active')
+            self.ensure_api_relay()
             name = 'ui-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:5]
             command,path,record_id,stop_root = self.command(task_id,duration,name)
             log_path = self.root/'logs'/('dashboard-'+name+'.log')
@@ -295,7 +435,7 @@ class Console:
             with log_path.open('w') as log:
                 process = subprocess.Popen(command,cwd=self.project,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,
                     env={**os.environ,'OMNI_KIT_ACCEPT_EULA':'YES','HABITAT_SIM_LOG':'quiet','MAGNUM_LOG':'quiet',
-                         'HTTPS_PROXY':'http://127.0.0.1:18119'},start_new_session=True)
+                         'HTTPS_PROXY':self.api_proxy},start_new_session=True)
             job = dict(id=name,name=name,task_id=task_id,kind='office' if task_id.startswith(('sysnav:','isaacmp3d:')) else task_id.split(':')[0],process=process,
                 record_path=path,record_id=record_id,stop_root=stop_root,started=time.time())
             self.jobs[name] = job

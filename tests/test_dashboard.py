@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('dashboard_server',Path(__file__).resolve().parents[1]/'scripts/dashboard/server.py')
 m = importlib.util.module_from_spec(spec)
@@ -35,6 +35,11 @@ class DashboardTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.console.command('office:lounge',-1,'test')
 
+    def test_api_relay_is_checked_before_start(self):
+        with patch.object(m.socket, 'create_connection', side_effect=OSError('offline')):
+            with self.assertRaisesRegex(ValueError, 'DeepSeek relay unavailable'):
+                self.console.ensure_api_relay()
+
     def test_cannot_stop_unowned_job(self):
         with self.assertRaises(ValueError):
             self.console.stop('another-session-job')
@@ -60,6 +65,25 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(detail['task_id'],'sysnav:lounge')
         self.assertEqual(detail['decisions'][0]['reason'],'Doorway is visible')
         self.assertNotIn('private deliberation',json.dumps(detail))
+
+    def test_native_yolo_and_sam_visuals_are_attached_to_rgb_frames(self):
+        run=self.project/'data/sim/office/runs/visuals'
+        run.mkdir(parents=True)
+        (run/'report.json').write_text(json.dumps(dict(task='lounge',mode='sysnav_full')))
+        (run/'chase_0000000.jpg').write_bytes(b'jpg')
+        (run/'panorama_0000000.jpg').write_bytes(b'rgb')
+        visual_dir=run/'agent/visuals';visual_dir.mkdir(parents=True)
+        for kind in ('yolo','sam'):
+            name=f'{kind}-0000000015.jpg'
+            (visual_dir/name).write_bytes(b'overlay')
+            (run/'agent/visuals.jsonl').parent.mkdir(exist_ok=True)
+            with (run/'agent/visuals.jsonl').open('a') as stream:
+                stream.write(json.dumps(dict(kind=kind,time=.015,received_time=.015,
+                    topic='/annotated_image_detection' if kind=='yolo' else '/annotated_image',
+                    file='visuals/'+name))+'\n')
+        detail=self.console.detail('office:visuals')
+        self.assertIn('yolo',detail['frames'][0]);self.assertIn('sam',detail['frames'][0])
+        self.assertIn('visuals%2Fyolo-',detail['frames'][0]['yolo'])
 
     def test_duplicate_simulation_launch_is_rejected(self):
         proc = Mock();proc.poll.return_value=None
