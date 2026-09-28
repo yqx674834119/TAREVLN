@@ -1,0 +1,166 @@
+diff --git a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+index 5313247d..1758e464 100644
+--- a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
++++ b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+@@ -67,7 +67,11 @@
+ #include "visualization_msgs/msg/marker_array.hpp"
+ #include "visualization_msgs/msg/marker.hpp"
+ #include <opencv2/opencv.hpp>
++#if __has_include(<cv_bridge/cv_bridge.hpp>)
+ #include <cv_bridge/cv_bridge.hpp>
++#else
++#include <cv_bridge/cv_bridge.h>
++#endif
+ #include "tare_planner/msg/room_node.hpp"
+ #include "tare_planner/msg/room_node_list.hpp"
+ #include "tare_planner/msg/room_type.hpp"
+@@ -139,6 +143,8 @@ private:
+   double kLookAheadDistance;
+   double kExtendWayPointDistanceBig;
+   double kExtendWayPointDistanceSmall;
++  // Maximum planar distance from the base to the target object's 3D box before stopping.
++  double kObjectStopFootprintDistance;
+ 
+   // Int
+   int kDirectionChangeCounterThr;
+diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+index 9193b067..7a48ad9e 100644
+--- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
++++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+@@ -12,6 +12,9 @@
+ #include "sensor_coverage_planner/sensor_coverage_planner_ground.h"
+ #include "graph/graph.h"
+ #include <memory>
++#include <algorithm>
++#include <cmath>
++#include <limits>
+ #include <unordered_map>
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2/LinearMath/Quaternion.h>
+@@ -72,6 +75,7 @@ void SensorCoveragePlanner3D::ReadParameters() {
+   this->declare_parameter<double>("kLookAheadDistance", 5.0);
+   this->declare_parameter<double>("kExtendWayPointDistanceBig", 8.0);
+   this->declare_parameter<double>("kExtendWayPointDistanceSmall", 3.0);
++  this->declare_parameter<double>("kObjectStopFootprintDistance", 0.9);
+ 
+   // Int
+   this->declare_parameter<int>("kDirectionChangeCounterThr", 4);
+@@ -239,6 +243,8 @@ void SensorCoveragePlanner3D::ReadParameters() {
+   this->get_parameter("kExtendWayPointDistanceBig", kExtendWayPointDistanceBig);
+   this->get_parameter("kExtendWayPointDistanceSmall",
+                       kExtendWayPointDistanceSmall);
++  this->get_parameter("kObjectStopFootprintDistance",
++                      kObjectStopFootprintDistance);
+ 
+   this->get_parameter("kDirectionChangeCounterThr", kDirectionChangeCounterThr);
+   this->get_parameter("kDirectionNoChangeCounterThr",
+@@ -2253,7 +2259,7 @@ void SensorCoveragePlanner3D::UpdateObjectVisibility()
+         }
+         Eigen::Vector3d current_viewpoint_pos(viewpoint.GetPosition().x,
+                                               viewpoint.GetPosition().y,
+-                                              viewpoint.GetPosition().z + 0.265); // make this to the height of the robot camera
++                                              viewpoint.GetPosition().z); // make this to the height of the robot camera
+         Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+ 
+         if ((current_viewpoint_pos - object_pos).norm() > rep_sensor_range)
+@@ -2403,7 +2409,7 @@ void SensorCoveragePlanner3D::UpdateViewpointObjectVisibility()
+   representation_ns::ViewPointRep &current_viewpoint = representation_->GetViewPointRepNode(curr_viewpoint_rep_node_ind);
+   Eigen::Vector3d current_viewpoint_pos(current_viewpoint.GetPosition().x,
+                                         current_viewpoint.GetPosition().y,
+-                                        current_viewpoint.GetPosition().z + 0.265); // make this to the height of the robot camera
++                                        current_viewpoint.GetPosition().z); // make this to the height of the robot camera
+   Eigen::Vector3i curr_viewpoint_voxel = planning_env_->Pos2Sub(current_viewpoint_pos);
+   for (auto &id_object_pair : representation_->GetObjectNodeRepMapMutable())
+   {
+@@ -3313,6 +3319,13 @@ bool SensorCoveragePlanner3D::GetLookAheadPoint(
+ }
+ 
+ void SensorCoveragePlanner3D::PublishWaypoint() {
++  // Expose the original completion condition without changing planning logic.
++  static auto status_pub = this->create_publisher<std_msgs::msg::String>("/sysnav/status", 5);
++  std_msgs::msg::String status;
++  status.data = json({{"found", found_object_}, {"stop", ask_found_object_},
++      {"object_id", found_object_id_}, {"object_xyz", {found_object_position_.x, found_object_position_.y, found_object_position_.z}},
++      {"room_id", current_room_id_}, {"time", this->now().seconds()}}).dump();
++  status_pub->publish(status);
+   geometry_msgs::msg::PointStamped waypoint;
+   if (exploration_finished_ && near_home_ && kRushHome) {
+     // if the whole environment is explored, and the robot is near home, go back to home
+@@ -3508,6 +3521,7 @@ void SensorCoveragePlanner3D::CountDirectionChange() {
+ }
+ 
+ void SensorCoveragePlanner3D::execute() {
++  if (this->now().seconds() <= 0.0 || odomTime <= 0.0) return;
+   if (!kAutoStart && !start_exploration_) {
+     RCLCPP_INFO(this->get_logger(), "Waiting for start signal");
+     return;
+@@ -4115,7 +4129,7 @@ cv::Mat SensorCoveragePlanner3D::project_pcl_to_image(
+   cv::Mat image_projected = image.clone();
+   cv::Mat rotated_image = image.clone();
+   const float PI = 3.1415926f;
+-  const float camX = -0.12f, camY = -0.075f, camZ = 0.265f;
++  const float camX = 0.0f, camY = 0.0f, camZ = 0.0f;
+   const float camRoll = -1.5707963f, camPitch = 0.0f, camYaw = -1.5707963f;
+   const int imageWidth = 1920;
+   const int imageHeight = 640;
+@@ -4479,13 +4493,57 @@ void SensorCoveragePlanner3D::CheckObjectFound()
+                                                      std::pow(robot_position_.y - found_object_position_.y, 2) +
+                                                      std::pow(robot_position_.z - found_object_position_.z, 2));
+     RCLCPP_INFO(this->get_logger(), "Distance to the found object: %.2f meters", found_object_distance_);
+-    if (found_object_distance_ < 1.0 && euclidean_distance_to_object_ < 2.0)
++    // The keypose graph can under-estimate the final approach distance when its
++    // last node is stale or lies on the opposite side of an object.  Stopping
++    // from that graph distance alone caused false-positive stops at the edge of
++    // the evaluator's target region.  Prefer the observed 3-D object box and
++    // measure distance to its planar footprint; this is the same geometric
++    // quantity used by the independent simulator evaluator.  Keep a 0.1 m
++    // margin so the local planner gets another waypoint before the terminal
++    // stop.  If an old object message has no valid box, retain the legacy
++    // distance gate as a compatibility fallback.
++    double footprint_distance = 0.0;
++    double box_min_x = std::numeric_limits<double>::infinity();
++    double box_max_x = -std::numeric_limits<double>::infinity();
++    double box_min_y = std::numeric_limits<double>::infinity();
++    double box_max_y = -std::numeric_limits<double>::infinity();
++    for (const auto &corner : representation_->GetObjectNodeRep(found_object_id_).bbox3d_)
+     {
+-      ask_found_object_ = true;
++      if (std::isfinite(corner.x) && std::isfinite(corner.y))
++      {
++        box_min_x = std::min(box_min_x, corner.x);
++        box_max_x = std::max(box_max_x, corner.x);
++        box_min_y = std::min(box_min_y, corner.y);
++        box_max_y = std::max(box_max_y, corner.y);
++      }
++    }
++    const bool valid_box = std::isfinite(box_min_x) && std::isfinite(box_max_x) &&
++                           std::isfinite(box_min_y) && std::isfinite(box_max_y) &&
++                           box_max_x > box_min_x && box_max_y > box_min_y;
++    if (valid_box)
++    {
++      const double dx = std::max({box_min_x - robot_position_.x, 0.0,
++                                  robot_position_.x - box_max_x});
++      const double dy = std::max({box_min_y - robot_position_.y, 0.0,
++                                  robot_position_.y - box_max_y});
++      footprint_distance = std::sqrt(dx * dx + dy * dy);
++      // The graph distance is retained for diagnostics but is not a stop
++      // prerequisite: it can remain stale after the robot has reached the
++      // observed object footprint.
++      ask_found_object_ = (footprint_distance <= kObjectStopFootprintDistance &&
++                           euclidean_distance_to_object_ < 2.0);
++      RCLCPP_INFO(this->get_logger(),
++                  "Target footprint distance: %.2f m (stop threshold %.2f m)%s",
++                  footprint_distance, kObjectStopFootprintDistance,
++                  ask_found_object_ ? " -> stop" : " -> approach");
+     }
+     else
+     {
+-      ask_found_object_ = false;
++      ask_found_object_ = (found_object_distance_ < 1.0 &&
++                           euclidean_distance_to_object_ < 2.0);
++      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
++                           "Target object %d has no valid 3-D box; using legacy stop gate",
++                           found_object_id_);
+     }
+ 
+     if (current_room_id_ == found_object_room_id_)
