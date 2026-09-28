@@ -1,5 +1,5 @@
 """Wall-clock profiling; never substitutes simulated sensor observations."""
-from collections import defaultdict
+from collections import defaultdict, deque
 import json
 from pathlib import Path
 import time
@@ -29,6 +29,7 @@ class RuntimeMetrics:
     def __init__(self, output, sim_start, gui=False):
         self.start=time.perf_counter(); self.sim_start=sim_start; self.gui=gui
         self.previous=(self.start,sim_start,0,0)
+        self.stage_samples=defaultdict(lambda:deque(maxlen=2048)); self.stage_counts=defaultdict(int)
         self.stages=defaultdict(float); self.renders=0; self.viewport_frames=0
         self.latest={}; self.api_calls=0; self.api_seconds=0.
         self.api=JsonTail(output/'agent/api.jsonl')
@@ -36,7 +37,10 @@ class RuntimeMetrics:
         self.stream=(output/'runtime_metrics.jsonl').open('w',buffering=1)
 
     def add(self, stage, started):
-        self.stages[stage]+=time.perf_counter()-started
+        elapsed=time.perf_counter()-started
+        self.stages[stage]+=elapsed
+        self.stage_counts[stage]+=1
+        self.stage_samples[stage].append(elapsed)
 
     def sample(self, sim_time, steps, worker_ms=None):
         for row in self.api.read():
@@ -60,6 +64,9 @@ class RuntimeMetrics:
             gui=self.gui,worker_latency_ms=worker_ms,vlm_api_calls=self.api_calls,
             vlm_api_avg_ms=self.api_seconds/self.api_calls*1000 if self.api_calls else None,
             stage_wall_seconds=dict(self.stages),
+            stage_calls=dict(self.stage_counts),
+            stage_mean_ms={k:1000*v/self.stage_counts[k] for k,v in self.stages.items()},
+            stage_recent_p95_ms={k:1000*sorted(v)[min(len(v)-1,int(.95*len(v)))] for k,v in self.stage_samples.items()},
             stage_wall_fraction={key:value/wall for key,value in self.stages.items()})
         # A rolling window stable enough to display at a 2 s web refresh.
         if interval>=2: self.previous=(now,sim_time,self.renders,self.viewport_frames)

@@ -40,6 +40,42 @@ def analyze(run):
     nonempty=[r for r in queries if r.get('query',{}).get('rooms')]
     room_snapshots=[r for r in events if r['topic']=='/room_nodes_list']
     answers=[r for r in events if r['topic']=='/room_navigation_answer']
+    early_queries=[r for r in events if r['topic']=='/room_early_stop_1']
+    api=rows(run/'agent/api.jsonl')
+    early_decisions=[dict(time=r['time'],status=r['status'],
+                          early_stop=(r.get('result') or {}).get('early_stop'),
+                          latency_wall_seconds=r.get('seconds'))
+                     for r in api if r['purpose']=='process_room_early_stop_1_query']
+    # No inferred request/answer pairing: the native messages do not carry a
+    # request ID. Preserve both clocks/timelines and inspect the actual dispatch.
+    room_transitions=[]
+    previous_room=None
+    for row in trace:
+        room=row.get('action',{}).get('sysnav',{}).get('room_id')
+        if room is not None and room!=previous_room:
+            room_transitions.append(dict(time=row['time'],room_id=room))
+            previous_room=room
+    transition_edges=[]
+    for previous,current in zip(room_transitions,room_transitions[1:]):
+        a,b=previous['room_id'],current['room_id']
+        if min(a,b)<=0:continue
+        changes=[];last_state=None
+        for snapshot in room_snapshots:
+            if snapshot['time']<current['time']:continue
+            graph={node['id']:set(node['neighbors']) for node in snapshot['rooms']}
+            if a not in graph or b not in graph:
+                state=(False,None,None)
+            else:
+                seen={a};pending=[a]
+                while pending:
+                    for neighbor in graph.get(pending.pop(),set())-seen:
+                        seen.add(neighbor);pending.append(neighbor)
+                state=(True,b in graph[a] and a in graph[b],b in seen)
+            if state!=last_state:
+                changes.append(dict(time=snapshot['time'],both_ids_present=state[0],
+                                    bidirectional_edge_present=state[1],graph_path_exists=state[2]))
+                last_state=state
+        transition_edges.append(dict(from_room=a,to_room=b,transition_time=current['time'],changes=changes))
     first_followup=None
     if answers:
         first=answers[0]
@@ -69,6 +105,13 @@ def analyze(run):
                     first_nonempty_time=nonempty[0]['time'] if nonempty else None,
                     candidate_ids=[dict(time=q['time'],ids=[r['room id'] for r in q['query']['rooms']]) for q in nonempty]),
                   room_answers=answers,first_selection_followup=first_followup,
+                  early_stop=dict(enabled=report.get('room_early_stop_enabled',False),
+                                  queries=early_queries,decisions=early_decisions,
+                                  type1_dispatches=[r for r in answers if r['answer_type']==1],
+                                  note='Type 1 also carries wrong-room recovery; inspect query and decision timelines before attributing it to an early-stop decision.'),
+                  current_room_transitions=room_transitions,
+                  transition_edge_history=transition_edges,
+                  transition_edge_note='Native room-ID transitions and graph changes, not oracle-labelled doors. Re-segmentation can also change the reported room ID.',
                   room_snapshots=dict(count=len(room_snapshots),last=room_snapshots[-1] if room_snapshots else None),
                   target_room_entries=entries,observed_topics=dict(Counter(r['topic'] for r in events)),
                   checked_archive_sha256=root_sha,

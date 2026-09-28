@@ -1,4 +1,4 @@
-"""Loopback-only simulation console. Launches only its own allowlisted jobs."""
+"""Simulation console. Launches only its own allowlisted jobs."""
 from __future__ import annotations
 import argparse
 import gzip
@@ -524,7 +524,11 @@ class Handler(BaseHTTPRequestHandler):
             super().log_message(fmt,*args)
 
     def trusted_host(self):
-        return self.headers.get('Host') in ('127.0.0.1:'+str(self.server.server_port),'localhost:'+str(self.server.server_port))
+        address = self.connection.getsockname()[0]
+        allowed = {address+':'+str(self.server.server_port)}
+        if address == '127.0.0.1':
+            allowed.add('localhost:'+str(self.server.server_port))
+        return self.headers.get('Host') in allowed
 
     def send(self, value, status=200, content_type='application/json; charset=utf-8'):
         content = json.dumps(value,ensure_ascii=False).encode() if not isinstance(value,bytes) else value
@@ -586,8 +590,22 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port',type=int,default=8878)
+    parser.add_argument('--lan-ip',help='Also listen on this LAN IPv4 address')
     args = parser.parse_args()
-    server = ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
-    server.console = Console()
-    print('VLN console on loopback port',args.port,flush=True)
-    server.serve_forever()
+    addresses = ['127.0.0.1']
+    if args.lan_ip and args.lan_ip not in addresses:
+        addresses.append(args.lan_ip)
+    console = Console()
+    servers = []
+    try:
+        for address in addresses:
+            server = ThreadingHTTPServer((address,args.port),Handler)
+            server.console = console
+            servers.append(server)
+        for server in servers[1:]:
+            threading.Thread(target=server.serve_forever,daemon=True).start()
+        print('VLN console listening on '+', '.join(addresses)+':'+str(args.port),flush=True)
+        servers[0].serve_forever()
+    finally:
+        for server in servers:
+            server.server_close()

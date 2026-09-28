@@ -39,6 +39,11 @@ ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="l
 ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT relay, e.g. http://127.0.0.1:18119")
 ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
 ap.add_argument('--sam-gpu',type=int,default=2)
+ap.add_argument('--lidar-backend',choices=['auto','physx','cuda'],default='auto',help='CUDA is validated for the static office; auto uses PhysX for other scenes')
+ap.add_argument('--lidar-gpu',type=int,default=3)
+ap.add_argument('--panorama-backend',choices=['reference','atlas'],default='atlas')
+ap.add_argument('--fabric',action='store_true',help='Experimental PhysX Fabric transform updates')
+ap.add_argument('--profile',action='store_true',help='Record cProfile of the main loop, excluding setup')
 ap.add_argument('--gui',action='store_true',help='Show Isaac Sim GUI and refresh the viewport during the run')
 ap.add_argument('--isaac-gpu',type=int,default=0)
 ap.add_argument('--vision-gpu',type=int,default=1)
@@ -110,7 +115,7 @@ for relative in ["sim/run_sysnav_full.py", "sim/sysnav_full_worker.py", "sim/sys
                  "src/vln_core/sysnav_sensor_contract.py",
                  "src/vln_policy/sysnav_tasks.py", "sim/sysnav_evaluation.py", "sim/fixtures/sysnav-object-evaluation.json",
                  "sim/sysnav_go2_policy.py", "sim/camera_readiness.py",
-                 "sim/planning_recorder.py", "sim/runtime_metrics.py", "src/vln_core/planning_geometry.py",
+                 "sim/planning_recorder.py", "sim/runtime_metrics.py", "sim/gpu_lidar.py", "src/vln_core/planning_geometry.py",
                  "sim/mp3d_episode.py", "sim/build_mp3d_isaac.py", "sim/mp3d_textures.py", "sim/review_camera.py", "sim/check_mp3d_isaac.py", "scripts/benchmarks/run_isaac_mp3d.py", "scripts/benchmarks/evaluate_isaac_mp3d.py",
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/sysnav-full-ros.yaml", "sim/sysnav_panorama.py",
                  "config/sysnav-full-provenance.json", "patches/sysnav-full-isaac.patch", "scripts/odometry_worker.py",
@@ -187,6 +192,8 @@ try:
             shutil.copyfile(private / filename, archive / filename)
     stage = omni.usd.get_context().get_stage()
     world = World(physics_dt=.005, rendering_dt=.1, stage_units_in_meters=1., device="cpu")
+    if args.fabric:world.get_physics_context().enable_fabric(True)
+    report['fabric_enabled']=args.fabric
     checkpoint = args.checkpoint or VLN / "assets/go2/checkpoint.pt"
     report.update(robot_checkpoint=str(checkpoint), robot_checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest())
     controller = Go2Policy(stage, VLN / "assets/go2/go2_lab.usd", checkpoint, spawn)
@@ -211,7 +218,8 @@ try:
     camera.add_distance_to_image_plane_to_frame()
     query = get_physx_scene_query_interface()
     k = camera.get_intrinsics_matrix()
-    panorama = Panorama([k[0,0],k[1,1],k[0,2],k[1,2]])
+    panorama = Panorama([k[0,0],k[1,1],k[0,2],k[1,2]],backend=args.panorama_backend)
+    report['panorama_backend']=args.panorama_backend
     contacts = {}
     contact_stream = open(out / "contacts.jsonl", "w")
     def contact_callback(headers, data):
@@ -269,10 +277,30 @@ try:
     angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad(elevations)]
     # The beam pattern is fixed. Batch pose transforms; keep identical PhysX hit rules.
     local_directions=np.asarray([[math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)] for a,e in angles])
+    cuda_lidar=None
+    if args.lidar_backend=='cuda' or (args.lidar_backend=='auto' and not mp3d):
+        try:
+            from gpu_lidar import VerifiedCudaLidar
+            cuda_lidar=VerifiedCudaLidar(stage,controller.robot,len(local_directions),device=f'cuda:{args.lidar_gpu}')
+            warm_pos,warm_quat=controller.robot.get_world_pose();warm_rot=quat_to_rot_matrix(warm_quat)
+            warm_start=time.perf_counter()
+            cuda_lidar.scan(query,warm_pos+warm_rot@np.array([0.,0.,.45]),local_directions@warm_rot.T,bool(odometry))
+            report['lidar_warmup_seconds']=time.perf_counter()-warm_start
+            report['lidar_backend']=dict(cuda_lidar.info)
+        except Exception as error:
+            if args.lidar_backend=='cuda':raise
+            report['lidar_backend']={'backend':'physx','fallback_reason':str(error)}
+    else:report['lidar_backend']={'backend':'physx'}
+    # Backend construction, JIT and same-state startup verification are setup.
+    start=time.monotonic();metrics.start=time.perf_counter()
+    metrics.previous=(metrics.start,float(world.current_time),0,0)
     step_limit=None if args.max_seconds<0 else int(args.max_seconds/.005)
     last_metrics=None
     t=float(world.current_time)
     pos=np.asarray(spawn)
+    if args.profile:
+        import cProfile
+        profiler=cProfile.Profile();profiler.enable()
     for step in itertools.count():
         if step_limit is not None and step>=step_limit:
             report["status"] = "timeout"
@@ -286,8 +314,9 @@ try:
         tick=time.perf_counter()
         render_requested=args.gui and step % 20 == 0
         world.step(render=False)
-        if render_requested: world.render()
-        metrics.add('physics_and_gui',tick)
+        metrics.add('physics_step',tick)
+        if render_requested:
+            tick=time.perf_counter();world.render();metrics.add('gui_render',tick)
         if render_requested:
             metrics.renders += 1
             metrics.viewport_frames += 1
@@ -308,15 +337,20 @@ try:
             origin = pos + rot @ mount
             world_directions=local_directions @ rot.T
             ray_origin=tuple(origin.tolist())
-            hit_indices=[]; distances=[]
-            for beam,direction in enumerate(world_directions.tolist()):
-                hit=query.raycast_closest(ray_origin,tuple(direction),10.)
-                if hit['hit'] and hit['distance']>.4:
-                    if odometry and any(str(hit.get(k,'')).startswith('/World/Go2') for k in ('rigidBody','collision')):
-                        continue
-                    hit_indices.append(beam); distances.append(hit['distance'])
-            indices=np.asarray(hit_indices,dtype=np.int64)
-            ranges=np.asarray(distances)[:,None]
+            if cuda_lidar:
+                all_ranges=cuda_lidar.scan(query,origin,world_directions,bool(odometry))
+                indices=np.flatnonzero(all_ranges>0);ranges=all_ranges[indices,None]
+                report['lidar_backend']=dict(cuda_lidar.info)
+            else:
+                hit_indices=[]; distances=[]
+                for beam,direction in enumerate(world_directions.tolist()):
+                    hit=query.raycast_closest(ray_origin,tuple(direction),10.)
+                    if hit['hit'] and hit['distance']>.4:
+                        if odometry and any(str(hit.get(k,'')).startswith('/World/Go2') for k in ('rigidBody','collision')):
+                            continue
+                        hit_indices.append(beam); distances.append(hit['distance'])
+                indices=np.asarray(hit_indices,dtype=np.int64)
+                ranges=np.asarray(distances)[:,None]
             xyz=origin+world_directions[indices]*ranges
             points=np.column_stack((xyz,np.zeros(len(xyz)))).tolist()
             raw_points=(mount+local_directions[indices]*ranges).tolist() if odometry else []
@@ -324,7 +358,9 @@ try:
             obs["points"] = points
             if odometry:
                 # Save failed frames too; these files stay evaluator-private.
+                tick=time.perf_counter()
                 np.savez_compressed(out/f'raw_scan_{step:07d}.npz', points_base_xyz=np.asarray(raw_points,dtype=np.float32), time=t)
+                metrics.add('raw_scan_write',tick)
                 tick=time.perf_counter()
                 result = odometry.ask(t, raw_points)
                 metrics.add('gicp',tick)
@@ -363,7 +399,9 @@ try:
                 cp = pos + rot @ np.array([0.,0.,.45])
                 cq = rot_matrix_to_quat(rot @ view_rot)
                 camera.set_world_pose(cp, cq, camera_axes="world")
+                capture_started=time.perf_counter()
                 rgb,render_count=render_rgba(world,camera)
+                metrics.add('cube_render_readback',capture_started)
                 metrics.renders += render_count
                 if render_count>4:
                     report.setdefault('camera_readiness_retries',[]).append(dict(time=t,face=index,renders=render_count))
@@ -371,10 +409,15 @@ try:
                 if index == 0:
                     Image.fromarray(rgb[:,:,:3]).save(out / f"rgb_{step:07d}_0.jpg")
                 samples += 1
+            tick_stitch=time.perf_counter()
             pano = Image.fromarray(panorama.stitch(faces))
+            metrics.add('panorama_stitch',tick_stitch)
+            tick_encode=time.perf_counter()
             pano.save(out / f"panorama_{step:07d}.jpg")
             data = io.BytesIO(); pano.save(data, format='JPEG', quality=90)
             obs['panorama'] = base64.b64encode(data.getvalue()).decode()
+            metrics.add('panorama_encode_write',tick_encode)
+            tick_review=time.perf_counter()
             # Review only: never supplied to the navigation or VLM process.
             eye = pos + np.array([-2.0*math.cos(yaw),-2.0*math.sin(yaw),1.6])
             look_at=pos+np.array([0.,0.,.15])
@@ -387,10 +430,12 @@ try:
             review_rgb = chase.get_rgba()
             if review_rgb is not None and review_rgb.size:
                 Image.fromarray(review_rgb[:,:,:3]).save(out / f"chase_{step:07d}.jpg")
-            metrics.add('sensor_render_and_encode',tick)
+            metrics.add('review_render_readback_encode',tick_review)
         if "points" in obs:
             # Preserve legacy evaluator scan format: true world-frame scan, never read by policy.
+            tick=time.perf_counter()
             np.savez_compressed(out / f"scan_{step:07d}.npz", points=np.asarray(points,dtype=np.float32), time=t, position=pos, quaternion=quat)
+            metrics.add('world_scan_write',tick)
         if worker and t > 2:
             ask_started=time.perf_counter()
             action = worker.ask(obs)
@@ -459,6 +504,10 @@ except (Exception, KeyboardInterrupt) as error:
         report.update(simulation_seconds=t, distance_m=distance, final_position=pos.tolist(), final_action=action)
     traceback.print_exc()
 finally:
+    if 'profiler' in locals():
+        profiler.disable();profiler.dump_stats(str(out/'loop.pstats'))
+        import pstats
+        with (out/'profile.txt').open('w') as stream:pstats.Stats(profiler,stream=stream).sort_stats('cumulative').print_stats(60)
     if odometry:
         odometry.close()
         if 'odom_trace' in locals():

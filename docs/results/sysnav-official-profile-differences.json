@@ -1,0 +1,76 @@
+{
+  "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
+  "scope": "Pinned official TARE and room segmentation YAML profiles. Local planner, sensor and motion adaptations are documented separately; this is not a claim of complete hardware launch equivalence.",
+  "differences": [
+    {
+      "node": "room_segmentation",
+      "key": "ceilingHeight_",
+      "official_sim": 2.7,
+      "official_go2_real": 2.3,
+      "effective": true
+    },
+    {
+      "node": "room_segmentation",
+      "key": "dilation_iteration",
+      "official_sim": 6,
+      "official_go2_real": 3,
+      "effective": true
+    },
+    {
+      "node": "room_segmentation",
+      "key": "distance_threshold",
+      "official_sim": 2.5,
+      "official_go2_real": 2.0,
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "kDoorCollisionCheckPointNumThr",
+      "official_sim": 1,
+      "official_go2_real": "1na",
+      "effective": false
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "kFrontierClusterMinSize",
+      "official_sim": 8,
+      "official_go2_real": 5,
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "kFrontierClusterTolerance",
+      "official_sim": 1.0,
+      "official_go2_real": 0.5,
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "kUseCoverageBoundaryOnFrontier",
+      "official_sim": true,
+      "official_go2_real": false,
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "rep_threshold_",
+      "official_sim": 0.45,
+      "official_go2_real": 0.66,
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "sub_state_estimation_topic_",
+      "official_sim": "/state_estimation_at_scan",
+      "official_go2_real": "/aft_mapped_to_init_incremental",
+      "effective": true
+    },
+    {
+      "node": "tare_planner_node",
+      "key": "sub_viewpoint_room_boundary_topic_",
+      "official_sim": "/current_room_boundary",
+      "official_go2_real": "/room_boundary",
+      "effective": true
+    }
+  ]
+}

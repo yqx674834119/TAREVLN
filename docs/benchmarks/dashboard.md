@@ -1,6 +1,6 @@
 # 仿真可视化前端
 
-地址：`http://127.0.0.1:8878/`。HTTP 服务在 5090，仅监听其 loopback；Mac 通过 SSH 转发同一端口。已在 Codex 浏览器打开。
+本机地址：`http://127.0.0.1:8878/`。当前局域网地址：`http://10.4.15.106:8878/`。Mac 也可通过 SSH 转发同一端口。
 
 ## 使用
 
@@ -19,7 +19,7 @@ Isaac 使用现有 Go2 v5 rails checkpoint、GICP、uniform64 虚拟 LiDAR、TAR
 
 Habitat 使用本轮的单前视 VLM adapter，0.25m 前进／15°转向，上限 500 原子动作及 130 次模型请求。它没有 Go2 物理或 TARE。本界面的交互测试结果不合并进已固定的 10 条 pilot 统计。
 
-模型凭据只由后台 worker 从 `~/VLN/secrets/` 读取，前端不接受或返回 API Key。浏览器端仅收到白名单化的决策字段与 JPG/PNG；API 的媒体路径不能越过对应运行目录。服务检查 Host、同源 Origin 与自定义请求头；目前用于 SSH loopback，不是公网多人服务。
+模型凭据只由后台 worker 从 `~/VLN/secrets/` 读取，前端不接受或返回 API Key。浏览器端仅收到白名单化的决策字段与 JPG/PNG；API 的媒体路径不能越过对应运行目录。服务检查 Host、同源 Origin 与自定义请求头。局域网入口没有用户认证，仅供可信网络使用，不应映射到公网。
 
 ## 验收证据
 
@@ -38,6 +38,8 @@ cd ~/VLN/cross-building-floor-nav
 nohup ../envs/bench-fetch/bin/python scripts/dashboard/server.py \
   > ../logs/dashboard-server.log 2>&1 < /dev/null &
 ```
+
+需要局域网访问时，在启动命令后加 `--lan-ip 10.4.15.106`；服务会同时保留 `127.0.0.1` 监听。IP 变化后需更新参数并重启。当前服务以用户临时单元 `vln-dashboard.service` 运行，可用 `systemctl --user status vln-dashboard` 检查。
 
 已有服务运行时不要重复启动。服务器 PID 记录在 `~/VLN/logs/dashboard-server.pid`；重启控制台之前先停止它持有的任务并确认进程退出，避免失去任务归属状态。
 
