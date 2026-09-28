@@ -9,6 +9,7 @@ ap=argparse.ArgumentParser()
 ap.add_argument('--name',required=True)
 ap.add_argument('--episode-id',required=True,type=int)
 ap.add_argument('--max-seconds',type=int,default=300)
+ap.add_argument('--gui',action='store_true')
 args=ap.parse_args()
 project=Path(__file__).resolve().parents[2];root=project.parent
 preflight=[str(root/'envs/isaac51/bin/python'),'-u','sim/check_mp3d_isaac.py','--episode-id',str(args.episode_id)]
@@ -27,8 +28,9 @@ if preflight_code:
 command=[str(root/'envs/isaac51/bin/python'),'-u','sim/run_sysnav_full.py',
     '--name',args.name,'--mp3d-scene','x8F5xyUWy9e','--mp3d-episode',str(args.episode_id),
     '--max-seconds',str(args.max_seconds),'--odometry','gicp','--lidar-profile','uniform64',
-    '--api-proxy','http://127.0.0.1:18119','--api-budget','600',
+    '--api-proxy','http://127.0.0.1:18119','--api-budget','-1' if args.max_seconds==-1 else '600',
     '--checkpoint',str(project/'data/readiness/training/go2-control-v5-rails/model_3595.pt')]
+if args.gui: command+=['--gui']
 code=subprocess.run(command,cwd=project).returncode
 run=project/'data/sim/office/runs'/args.name
 if (run/'trajectory.jsonl').exists() and (run/'trajectory.jsonl').stat().st_size:

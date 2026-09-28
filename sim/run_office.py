@@ -1,6 +1,7 @@
 """Single-scene native TARE / DeepSeek vision / articulated Go2 experiment."""
 from __future__ import annotations
 import argparse
+import itertools
 import base64
 import io
 import json
@@ -30,7 +31,10 @@ ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT rel
 ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
 ap.add_argument('--sam-gpu',type=int,default=2)
 ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],default='pixel_cross')
+ap.add_argument('--gui',action='store_true')
 args = ap.parse_args()
+if (args.max_seconds<=0 and args.max_seconds!=-1) or not math.isfinite(args.max_seconds):
+    ap.error('duration must be positive or -1')
 ROOT = Path(__file__).resolve().parents[1]
 VLN = ROOT.parent
 private = ROOT / "data/sim/office/private"
@@ -70,7 +74,7 @@ if native.exists():
                 if line.startswith(("CMAKE_CXX_FLAGS:", "CMAKE_CXX_FLAGS_RELEASE:", "CMAKE_CXX_FLAGS_RELWITHDEBINFO:", "CMAKE_BUILD_TYPE:"))]}
     (archive / "native-build.json").write_text(json.dumps(evidence, indent=2))
 from isaacsim import SimulationApp
-app = SimulationApp({"headless": True, "open_usd": str(private / "scene.usda"), "create_new_stage": False,
+app = SimulationApp({"headless": not args.gui, "open_usd": str(private / "scene.usda"), "create_new_stage": False,
                      "multi_gpu": False, "active_gpu": 0, "physics_gpu": 0, "anti_aliasing": 0,
                      "width": 640, "height": 480, "fast_shutdown": True})
 worker = None
@@ -173,12 +177,13 @@ try:
     # Neither ray pattern is a calibrated model of a physical Go2/MID360 sensor.
     elevations = [-40,-25,-15,-7,0,7,15,25,40,55,70] if args.lidar_profile == 'legacy11' else np.linspace(-40,70,64)
     angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad(elevations)]
-    for step in range(int(args.max_seconds/.005)):
+    for step in (itertools.count() if args.max_seconds==-1 else range(int(args.max_seconds/.005))):
         if (out / "STOP").exists():
             report["status"] = "operator_stopped"
             break
         controller.step(command)
         world.step(render=False)
+        if args.gui and step%20==0: world.render()
         if step % 20:
             continue
         t = float(world.current_time)

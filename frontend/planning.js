@@ -23,10 +23,15 @@ const plannerView = (() => {
     const fresh=layer=>layer&&snapshot.time-layer.time<=3;
     const layerPoints=k=>fresh(layers[k])?layers[k].points:[];
     const free=layerPoints('free'),candidates=layerPoints('candidates'),obstacles=layerPoints('obstacles');
+    const room=snapshot.room_mask;
+    // Native room-mask rows represent X; columns represent Y.
+    const roomBounds=room?[room.origin[0],room.origin[0]+room.height*room.resolution[0],
+                            room.origin[1],room.origin[1]+room.width*room.resolution[1]]:null;
     const extent=checked('planFollow')?[robot[0]-6,robot[0]+6,robot[1]-6,robot[1]+6]:(()=>{
-      const points=[robot,...snapshot.trail,...free,...candidates];
-      return [Math.min(...points.map(p=>p[0]))-1,Math.max(...points.map(p=>p[0]))+1,
-              Math.min(...points.map(p=>p[1]))-1,Math.max(...points.map(p=>p[1]))+1];
+      const points=[robot,...snapshot.trail,...free,...candidates,...(checked('planObjects')?(snapshot.objects||[]).map(o=>o.xyz):[])];
+      const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]);
+      if(roomBounds){xs.push(roomBounds[0],roomBounds[1]);ys.push(roomBounds[2],roomBounds[3]);}
+      return [Math.min(...xs)-1,Math.max(...xs)+1,Math.min(...ys)-1,Math.max(...ys)+1];
     })();
     const scale=Math.min((canvas.width-48)/Math.max(extent[1]-extent[0],2),(canvas.height-45)/Math.max(extent[3]-extent[2],2));
     const cx=(extent[0]+extent[1])/2,cy=(extent[2]+extent[3])/2;
@@ -36,10 +41,61 @@ const plannerView = (() => {
     for(let y=Math.floor(extent[2]);y<=extent[3];y++){const v=xy([cx,y])[1];ctx.beginPath();ctx.moveTo(0,v);ctx.lineTo(canvas.width,v);ctx.stroke();}
     function cloud(points,color,size,groundOnly=true){ctx.fillStyle=color;for(const p of points){if(groundOnly&&Math.abs(p[2]-robot[2])>.8)continue;const [x,y]=xy(p);ctx.fillRect(x-size/2,y-size/2,size,size);}}
     function line(points,color,width,dash=[]){if(!points.length)return;ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);points.forEach((p,i)=>{const [x,y]=xy(p);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();ctx.setLineDash([]);}
+    function roomColor(id){return `hsl(${(Math.abs(Number(id))*53)%360} 58% 66%)`;}
+    function drawRooms(){
+      if(!checked('planRooms')||!room?.ids?.length)return;
+      const rx=room.resolution[0],ry=room.resolution[1];
+      for(let i=0;i<room.height;i++)for(let j=0;j<room.width;j++){
+        const id=Number(room.ids[i]?.[j]||0);if(id<=0)continue;
+        const a=xy([room.origin[0]+i*rx,room.origin[1]+j*ry]);
+        const b=xy([room.origin[0]+(i+1)*rx,room.origin[1]+(j+1)*ry]);
+        ctx.fillStyle=roomColor(id);ctx.globalAlpha=.28;
+        ctx.fillRect(Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(1,Math.abs(b[0]-a[0])),Math.max(1,Math.abs(b[1]-a[1])));
+      }
+      ctx.globalAlpha=1;
+      for(const item of (snapshot.rooms||[])){
+        if(!Array.isArray(item.centroid)||item.centroid.length<2)continue;
+        const [x,y]=xy(item.centroid);const current=Number(item.id)===Number(snapshot.current_room_id);
+        ctx.font=current?'bold 13px sans-serif':'12px sans-serif';ctx.fillStyle=current?'#9d174d':'#7a245c';
+        ctx.strokeStyle='#fff';ctx.lineWidth=3;const text=`R${item.id}${item.label?' · '+item.label:''}${current?' · 当前':''}`;
+        ctx.strokeText(text,x+5,y-5);ctx.fillText(text,x+5,y-5);
+      }
+    }
+    drawRooms();
     if(checked('planArea')){cloud(free,'#79d6b3',Math.max(2,.19*scale));cloud(candidates,'#1fa877',Math.max(2,.12*scale));cloud(layerPoints('free_paths'),'#bce6f1',2);}
     if(checked('planObstacles'))cloud(obstacles,'#ed8186',Math.max(2,.12*scale));
     line(snapshot.trail,'#3978d8',2);
     if(checked('planPath')){line(layerPoints('coverage_path'),'#94a3b8',1,[4,3]);line(layerPoints('path'),'#7b49d5',3);}
+    if(checked('planObjects')){
+      const labelBoxes=[];
+      for(const item of (snapshot.objects||[])){
+        if(!Array.isArray(item.xyz)||item.xyz.length<3)continue;
+        const [ox,oy]=xy(item.xyz);ctx.fillStyle='#ef7d32';ctx.strokeStyle='#7c2d12';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(ox,oy,5,0,Math.PI*2);ctx.fill();ctx.stroke();
+        const xyz=item.xyz.slice(0,3).map(v=>Number(v).toFixed(2)).join(', ');
+        const label=`#${item.id} ${item.label||'object'} (${xyz})`;
+        if(ox<0||oy<0||ox>canvas.width||oy>canvas.height)continue;
+        ctx.font='12px sans-serif';
+        const width=Math.min(ctx.measureText(label).width+8,canvas.width-12),height=18;
+        let box;
+        for(const offset of [-24,0,24,-48,48,-72,72,-96,96]){
+          for(const left of [ox+10,ox-width-10]){
+            const candidate={x:Math.max(6,Math.min(left,canvas.width-width-6)),
+              y:Math.max(6,Math.min(oy+offset,canvas.height-height-28)),w:width,h:height};
+            if(!labelBoxes.some(b=>candidate.x<b.x+b.w+4&&candidate.x+candidate.w+4>b.x&&candidate.y<b.y+b.h+3&&candidate.y+candidate.h+3>b.y)){
+              box=candidate;break;
+            }
+          }
+          if(box)break;
+        }
+        box=box||{x:Math.max(6,Math.min(ox+10,canvas.width-width-6)),y:Math.max(6,oy-24),w:width,h:height};
+        labelBoxes.push(box);
+        ctx.strokeStyle='#d69d73';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ox,oy);
+        ctx.lineTo(Math.max(box.x,Math.min(ox,box.x+box.w)),Math.max(box.y,Math.min(oy,box.y+box.h)));ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillRect(box.x,box.y,box.w,box.h);
+        ctx.fillStyle='#7c2d12';ctx.fillText(label,box.x+4,box.y+13,box.w-8);
+      }
+    }
     if(checked('planWaypoints')){
       cloud(snapshot.waypoint_history,'#f9c45d',3,false);
       const wp=layerPoints('waypoint')[0];
@@ -50,9 +106,9 @@ const plannerView = (() => {
     const [rx,ry]=xy(robot),yaw=snapshot.robot.yaw;
     ctx.save();ctx.translate(rx,ry);ctx.rotate(-yaw);ctx.fillStyle='#123c68';ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(-6,-5);ctx.lineTo(-6,5);ctx.closePath();ctx.fill();ctx.restore();
     ctx.fillStyle='#64748b';ctx.font='13px sans-serif';ctx.fillText('odom / map · 1 m 网格 · 当前层',12,canvas.height-10);
-    note.textContent=`规划 ${snapshot.time.toFixed(1)} s · 可通行采样 ${fresh(layers.free)?free.length:'无数据'} · 候选视点 ${fresh(layers.candidates)?candidates.length:'无数据'} · 障碍点 ${fresh(layers.obstacles)?obstacles.length:'无数据'} · waypoint ${layerPoints('waypoint').length?'已发布':'等待'}。未知区域不填色。`;
+    note.textContent=`规划 ${snapshot.time.toFixed(1)} s · 可通行采样 ${fresh(layers.free)?free.length:'无数据'} · 房间 Mask ${room?.nonzero_ids?.length?room.nonzero_ids.map(id=>'R'+id).join('、'):'无数据'} · 候选视点 ${fresh(layers.candidates)?candidates.length:'无数据'} · 障碍点 ${fresh(layers.obstacles)?obstacles.length:'无数据'} · waypoint ${layerPoints('waypoint').length?'已发布':'等待'} · 物体 ${snapshot.objects?.length||0}。房间来源 /room_mask；未知区域不填色。`;
     return true;
   }
-  document.addEventListener('DOMContentLoaded',()=>{for(const id of ['planArea','planObstacles','planPath','planWaypoints','planFollow'])document.getElementById(id).addEventListener('change',()=>drawMap(state.data,state.data?.frames[state.index]));});
+  document.addEventListener('DOMContentLoaded',()=>{for(const id of ['planArea','planRooms','planObstacles','planPath','planWaypoints','planObjects','planFollow'])document.getElementById(id).addEventListener('change',()=>drawMap(state.data,state.data?.frames[state.index]));});
   return {draw};
 })();

@@ -28,12 +28,14 @@ def cloud_xyz(message):
 
 
 class PlanningRecorder:
-    def __init__(self,node,output):
+    def __init__(self,node,output,room_config):
         self.output=Path(output)/'planning';self.output.mkdir(exist_ok=True)
         self.index=(self.output/'index.jsonl').open('w',buffering=1)
         self.poses=deque(maxlen=150);self.layers={};self.lock=threading.RLock()
         self.last=-100.;self.rejected=0
         self.room_mask=None;self.mask_last_saved=-1.
+        self.room_resolution=float(room_config['room_resolution'])
+        self.room_shape=(int(room_config['room_x']),int(room_config['room_y']))
         topics={'free':'/freespace_cloud','candidates':'/viewpoint_vis_cloud',
                 'obstacles':'/collision_cloud','free_paths':'/free_paths',
                 'doors':'/door_cloud','room_map':'/room_map_cloud'}
@@ -45,7 +47,7 @@ class PlanningRecorder:
         node.create_subscription(Image,'/room_mask',self.mask,2)
 
     def mask(self,msg):
-        if msg.encoding!='32SC1':
+        if msg.encoding!='32SC1' or (msg.height,msg.width)!=self.room_shape:
             return
         dtype='>i4' if msg.is_bigendian else '<i4'
         a=np.ndarray((msg.height,msg.width),dtype=dtype,buffer=bytes(msg.data),strides=(msg.step,4)).copy()
@@ -95,12 +97,19 @@ class PlanningRecorder:
             if self.room_mask and self.mask_last_saved<self.room_mask[0]<=t+.001:
                 mask_t,mask=self.room_mask
                 mask_name=f'rooms-{int(mask_t*1000):010d}.npz'
-                np.savez_compressed(self.output/mask_name,mask=mask,time=mask_t)
+                origin=-np.asarray(mask.shape)*self.room_resolution/2
+                temporary=self.output/(mask_name+'.tmp')
+                with temporary.open('wb') as f:
+                    np.savez_compressed(f,mask=mask,time=mask_t,resolution=self.room_resolution,origin=origin)
+                temporary.replace(self.output/mask_name)
                 self.mask_last_saved=mask_t
                 row['room_mask_file']=mask_name
             name=f'plan-{int(t*1000):010d}.json'
             (self.output/name).write_text(json.dumps(row,separators=(',',':')))
-            self.index.write(json.dumps(dict(time=t,file=name,robot=row['robot'],
+            index_row=dict(time=t,file=name,robot=row['robot'],
                 waypoint=layers.get('waypoint',{}).get('points',[]),
-                counts={k:len(v['points']) for k,v in layers.items()}))+'\n')
+                counts={k:len(v['points']) for k,v in layers.items()})
+            if 'room_mask_file' in row:
+                index_row['room_mask_file']=row['room_mask_file']
+            self.index.write(json.dumps(index_row)+'\n')
             self.last=t

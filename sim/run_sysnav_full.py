@@ -6,6 +6,8 @@ import io
 import json
 import math
 import hashlib
+import itertools
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -37,11 +39,18 @@ ap.add_argument("--lidar-profile", choices=["legacy11", "uniform64"], default="l
 ap.add_argument("--api-proxy", help="Optional project-owned loopback CONNECT relay, e.g. http://127.0.0.1:18119")
 ap.add_argument('--sam',action='store_true',help='Require SAM2-refined observed surfaces for arrival verification')
 ap.add_argument('--sam-gpu',type=int,default=2)
+ap.add_argument('--gui',action='store_true',help='Show Isaac Sim GUI and refresh the viewport during the run')
+ap.add_argument('--isaac-gpu',type=int,default=0)
+ap.add_argument('--vision-gpu',type=int,default=1)
+ap.add_argument('--vlm-gpu',type=int,default=3)
 ap.add_argument('--surface-geometry',choices=['pixel_cross','metric_plane'],default='pixel_cross')
 args = ap.parse_args()
 if args.geometry_only or args.sam or args.preview:
     ap.error("Full SysNav requires all semantic modules; no geometry-only/preview/external-SAM mode")
-if not 1<=args.api_budget<=1500:ap.error('API budget must be 1..1500')
+if args.api_budget!=-1 and not 1<=args.api_budget<=1500:ap.error('API budget must be -1 or 1..1500')
+if (args.max_seconds <= 0 and args.max_seconds != -1) or not math.isfinite(args.max_seconds):ap.error('--max-seconds must be a positive value or -1 for unlimited runtime')
+if args.gui and not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+    ap.error('GUI requires an accessible desktop display')
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'))
 from vln_policy.sysnav_tasks import TASKS
@@ -67,12 +76,13 @@ report = {"status": "starting", "success": False, "policy": "Full native SysNav 
           "api_proxy": args.api_proxy,
           "api_budget": args.api_budget,
           "room_early_stop_enabled":args.enable_room_early_stop,
-          "surface_geometry":"native_sam2_lidar_fusion","sam_enabled":True,"sam_gpu":2,
+          "surface_geometry":"native_sam2_lidar_fusion","sam_enabled":True,"sam_gpu":args.sam_gpu,
           "mode": "sysnav_full",
           "terminal_control": "one-second torque-limited PD blend to standing joints after native SysNav STOP",
           "instruction": instruction,
           "source_revision": "SysNav 478727e5a559be22822d5d093b57431449336287 + recorded patch",
-          "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds}
+          "task": args.task, "requested_spawn": args.spawn, "requested_yaw": args.yaw, "max_seconds": args.max_seconds,
+          "gui": args.gui, "gpu_allocation": {"isaac": args.isaac_gpu, "physics": "cpu", "vision": args.vision_gpu, "sam": args.sam_gpu, "vlm": args.vlm_gpu}}
 if mp3d:
     report.update(mode='sysnav_full_mp3d',task='mp3d:'+str(args.mp3d_episode),scene=args.mp3d_scene,
                   episode_id=args.mp3d_episode,protocol='Isaac transfer of R2R-CE val_unseen; not official Habitat scores',
@@ -100,7 +110,7 @@ for relative in ["sim/run_sysnav_full.py", "sim/sysnav_full_worker.py", "sim/sys
                  "src/vln_core/sysnav_sensor_contract.py",
                  "src/vln_policy/sysnav_tasks.py", "sim/sysnav_evaluation.py", "sim/fixtures/sysnav-object-evaluation.json",
                  "sim/sysnav_go2_policy.py", "sim/camera_readiness.py",
-                 "sim/planning_recorder.py", "src/vln_core/planning_geometry.py",
+                 "sim/planning_recorder.py", "sim/runtime_metrics.py", "src/vln_core/planning_geometry.py",
                  "sim/mp3d_episode.py", "sim/build_mp3d_isaac.py", "sim/mp3d_textures.py", "sim/review_camera.py", "sim/check_mp3d_isaac.py", "scripts/benchmarks/run_isaac_mp3d.py", "scripts/benchmarks/evaluate_isaac_mp3d.py",
                  "sim/contact_audit.py", "src/vln_core/vision_api.py", "src/vln_policy/office_contract.py", "src/vln_policy/office_decision.py", "src/vln_policy/office_tasks.py", "src/vln_policy/office_grounding.py", "src/vln_policy/office_surface.py", "src/vln_policy/office_candidates.py", "config/sysnav-full-ros.yaml", "sim/sysnav_panorama.py",
                  "config/sysnav-full-provenance.json", "patches/sysnav-full-isaac.patch", "scripts/odometry_worker.py",
@@ -138,8 +148,8 @@ if native.exists():
                 if line.startswith(("CMAKE_CXX_FLAGS:", "CMAKE_CXX_FLAGS_RELEASE:", "CMAKE_CXX_FLAGS_RELWITHDEBINFO:", "CMAKE_BUILD_TYPE:"))]}
     (archive / "native-build.json").write_text(json.dumps(evidence, indent=2))
 from isaacsim import SimulationApp
-app = SimulationApp({"headless": True, "open_usd": str(private / "scene.usda"), "create_new_stage": False,
-                     "multi_gpu": False, "active_gpu": 0, "physics_gpu": 0, "anti_aliasing": 0,
+app = SimulationApp({"headless": not args.gui, "open_usd": str(private / "scene.usda"), "create_new_stage": False,
+                     "multi_gpu": False, "active_gpu": args.isaac_gpu, "physics_gpu": args.isaac_gpu, "anti_aliasing": 0,
                      "width": 640, "height": 480, "fast_shutdown": True})
 worker = None
 odometry = None
@@ -226,7 +236,8 @@ try:
     if not args.preview:
         worker = FullSysNavProcess(ROOT, out / "agent", stderr, task=args.task, instruction=instruction,
                                    api_proxy=args.api_proxy,api_budget=args.api_budget,
-                                   enable_room_early_stop=args.enable_room_early_stop)
+                                   enable_room_early_stop=args.enable_room_early_stop,
+                                   vision_gpu=args.vision_gpu,sam_gpu=args.sam_gpu,vlm_gpu=args.vlm_gpu)
     if args.odometry == 'gicp':
         odometry = OdometryProcess(ROOT, out/'odometry', out,gicp_correspondence=args.gicp_correspondence)
         odom_trace = (out/'odometry/poses.jsonl').open('w')
@@ -246,15 +257,40 @@ try:
     samples, distance, dwell = 0, 0., 0.
     last_pos = np.asarray(spawn)
     start = time.monotonic()
+    from runtime_metrics import RuntimeMetrics
+    metrics=RuntimeMetrics(out,float(world.current_time),args.gui)
+    worker_latency_ms=None
+    if args.gui:
+        from omni.kit.viewport.utility import get_active_viewport
+        viewport=get_active_viewport()
+        if viewport: viewport.camera_path='/World/ReviewCamera'
     # Neither ray pattern is a calibrated model of a physical Go2/MID360 sensor.
     elevations = [-40,-25,-15,-7,0,7,15,25,40,55,70] if args.lidar_profile == 'legacy11' else np.linspace(-40,70,64)
     angles = [(a, e) for a in np.arange(360)*math.pi/180 for e in np.deg2rad(elevations)]
-    for step in range(int(args.max_seconds/.005)):
-        if (out / "STOP").exists():
+    # The beam pattern is fixed. Batch pose transforms; keep identical PhysX hit rules.
+    local_directions=np.asarray([[math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)] for a,e in angles])
+    step_limit=None if args.max_seconds<0 else int(args.max_seconds/.005)
+    last_metrics=None
+    t=float(world.current_time)
+    pos=np.asarray(spawn)
+    for step in itertools.count():
+        if step_limit is not None and step>=step_limit:
+            report["status"] = "timeout"
+            break
+        if not app.is_running() or (out / "STOP").exists():
             report["status"] = "operator_stopped"
             break
+        tick=time.perf_counter()
         controller.step(command)
+        metrics.add('control',tick)
+        tick=time.perf_counter()
+        render_requested=args.gui and step % 20 == 0
         world.step(render=False)
+        if render_requested: world.render()
+        metrics.add('physics_and_gui',tick)
+        if render_requested:
+            metrics.renders += 1
+            metrics.viewport_frames += 1
         if step % 20:
             continue
         t = float(world.current_time)
@@ -267,27 +303,31 @@ try:
         last_pos = pos.copy()
         obs = {"time": t, "position": pos.tolist(), "orientation": quat.tolist(), "velocity": (rot.T @ vel).tolist(), "yaw": yaw}
         if step % 40 == 0:
-            points = []
-            raw_points = []
+            tick=time.perf_counter()
             mount = np.array([0.,0.,.45])
             origin = pos + rot @ mount
-            for a, e in angles:
-                local_direction = np.array([math.cos(a)*math.cos(e),math.sin(a)*math.cos(e),math.sin(e)])
-                direction = rot @ local_direction
-                hit = query.raycast_closest(tuple(map(float, origin)), tuple(map(float, direction)), 10.)
-                if hit["hit"] and hit["distance"] > .4:
-                    if odometry and any(str(hit.get(k, '')).startswith('/World/Go2') for k in ('rigidBody', 'collision')):
+            world_directions=local_directions @ rot.T
+            ray_origin=tuple(origin.tolist())
+            hit_indices=[]; distances=[]
+            for beam,direction in enumerate(world_directions.tolist()):
+                hit=query.raycast_closest(ray_origin,tuple(direction),10.)
+                if hit['hit'] and hit['distance']>.4:
+                    if odometry and any(str(hit.get(k,'')).startswith('/World/Go2') for k in ('rigidBody','collision')):
                         continue
-                    xyz = origin + direction*hit["distance"]
-                    points.append([*xyz.tolist(), 0.])
-                    if odometry:
-                        raw_points.append((mount + local_direction*hit['distance']).tolist())
+                    hit_indices.append(beam); distances.append(hit['distance'])
+            indices=np.asarray(hit_indices,dtype=np.int64)
+            ranges=np.asarray(distances)[:,None]
+            xyz=origin+world_directions[indices]*ranges
+            points=np.column_stack((xyz,np.zeros(len(xyz)))).tolist()
+            raw_points=(mount+local_directions[indices]*ranges).tolist() if odometry else []
+            metrics.add('lidar_raycast',tick)
             obs["points"] = points
             if odometry:
                 # Save failed frames too; these files stay evaluator-private.
                 np.savez_compressed(out/f'raw_scan_{step:07d}.npz', points_base_xyz=np.asarray(raw_points,dtype=np.float32), time=t)
-                np.savez_compressed(out/f'scan_{step:07d}.npz', points=np.asarray(points,dtype=np.float32), time=t, position=pos, quaternion=quat)
+                tick=time.perf_counter()
                 result = odometry.ask(t, raw_points)
+                metrics.add('gicp',tick)
                 if not result.get('valid'):
                     command[:] = 0
                     (out/'odometry/failure.json').write_text(json.dumps({'time':t, **result},indent=2))
@@ -317,12 +357,14 @@ try:
             obs.update(position=estimated_pos.tolist(), orientation=rot_matrix_to_quat(estimated_rot).tolist(),
                        velocity=estimated_velocity.tolist(), yaw=math.atan2(estimated_rot[1,0],estimated_rot[0,0]), pose_time=pose_time)
         if step % 200 == 0:
+            tick=time.perf_counter()
             faces = []
             for index, view_rot in enumerate(cube_rotations()):
                 cp = pos + rot @ np.array([0.,0.,.45])
                 cq = rot_matrix_to_quat(rot @ view_rot)
                 camera.set_world_pose(cp, cq, camera_axes="world")
                 rgb,render_count=render_rgba(world,camera)
+                metrics.renders += render_count
                 if render_count>4:
                     report.setdefault('camera_readiness_retries',[]).append(dict(time=t,face=index,renders=render_count))
                 faces.append(rgb[:,:,:3].copy())
@@ -339,15 +381,22 @@ try:
             eye=unobstructed_eye(query,look_at,eye)
             look = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*map(float,eye)), Gf.Vec3d(*map(float,look_at)), Gf.Vec3d(0,0,1)).GetInverse().ExtractRotationQuat()
             chase.set_world_pose(eye, np.array([look.GetReal(),*look.GetImaginary()]), camera_axes="usd")
-            for _ in range(8): world.render()
+            for _ in range(8):
+                world.render()
+                metrics.renders += 1
             review_rgb = chase.get_rgba()
             if review_rgb is not None and review_rgb.size:
                 Image.fromarray(review_rgb[:,:,:3]).save(out / f"chase_{step:07d}.jpg")
+            metrics.add('sensor_render_and_encode',tick)
         if "points" in obs:
             # Preserve legacy evaluator scan format: true world-frame scan, never read by policy.
             np.savez_compressed(out / f"scan_{step:07d}.npz", points=np.asarray(points,dtype=np.float32), time=t, position=pos, quaternion=quat)
         if worker and t > 2:
+            ask_started=time.perf_counter()
             action = worker.ask(obs)
+            worker_latency_ms=(time.perf_counter()-ask_started)*1000
+            metrics.add('ros_bridge',ask_started)
+            action["worker_latency_ms"]=worker_latency_ms
             command = np.asarray(action["cmd_vel"], dtype=float)
             if command.shape != (3,) or not np.isfinite(command).all():
                 raise ValueError("Invalid pathFollower command")
@@ -357,6 +406,7 @@ try:
                "joint_positions": controller.robot.get_joint_positions().tolist()}
         trace.write(json.dumps(row) + "\n")
         trace.flush()
+        last_metrics=metrics.sample(t,step+1,worker_latency_ms)
         if step % 2000 == 0:
             print("OFFICE", round(t,1), [round(float(x),2) for x in pos], action.get("reason"), action.get("vlm_calls"), action.get("counts"), flush=True)
         if action.get("stop"):
@@ -392,10 +442,14 @@ try:
         if t > 2 and (pos[2] < minimum_z or rot[2,2] < .55):
             report["status"] = "fallen"
             break
-    else:
-        report["status"] = "preview_complete" if args.preview else "timeout"
     report.update(simulation_seconds=t, wall_seconds=time.monotonic()-start, distance_m=distance, final_position=pos.tolist(),
                   sensor_frames=samples, final_action=action, assets_complete=manifest["complete"], collision_meshes=build.get("collision_meshes",build.get('meshes')))
+    if last_metrics is not None:
+        report.update(realtime_factor=last_metrics['realtime_factor'],render_fps=last_metrics['render_fps'],
+                     physics_hz=last_metrics['physics_hz'],vlm_api_latency_ms=last_metrics.get('vlm_api_last_ms'),
+                     gpu_allocation=last_metrics.get('gpu_allocation',report.get('gpu_allocation')))
+        report['runtime_metrics']=last_metrics
+        report['measured_stage_wall_seconds']=last_metrics['stage_wall_seconds']
     (out / "contacts.json").write_text(json.dumps(contacts, indent=2))
     report.update(contact_quality(contacts))
     trace.close()
@@ -415,6 +469,9 @@ finally:
                 'maximum_translation_error_m':max(odometry_errors), 'final_translation_error_m':odometry_errors[-1],
                 'maximum_rotation_error_deg':math.degrees(max(odometry_rot_errors)),
                 'processing_p95_ms':float(np.quantile(odometry_times,.95)*1000)}
+    if 'metrics' in locals():
+        if metrics.latest: report['runtime_metrics']=metrics.latest
+        metrics.close()
     if worker:
         worker.close()
     if sam:
