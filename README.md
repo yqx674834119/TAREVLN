@@ -55,25 +55,53 @@ cross-building-floor-nav/
 
 ## 整体算法架构
 
-```mermaid
-flowchart LR
-    U[语言任务] --> T[TaskSpec / 任务条件]
-    S[Isaac RGB-D\nLiDAR / 位姿 / IMU] --> A[Sensor Adapter]
-    A --> P[YOLO + SAM\n房间分割与物体观测]
-    P --> M[Room/Object Memory\n证据、覆盖率、负证据]
-    T --> V[DeepSeek VLM\n语义分类与候选选择]
-    M --> V
-    V --> Q[语义子目标\nroom / object / inspect]
-    Q --> R[TARE\n局部探索与可达视点]
-    R --> W[/way_point]
-    W --> L[localPlanner\n局部碰撞与路径]
-    L --> F[pathFollower\n速度控制]
-    F --> G[Go2 关节力矩策略]
-    G --> S
-    R --> D[/path、free_paths、viewpoints]
-    A --> D
-    D --> H[Dashboard\nRGB、轨迹、TARE、Waypoint、决策]
-    E[Oracle Evaluator\n目标区域、停止条件、接触审计] -. 只评测 .-> H
+```text
+┌──────────────────────┐
+│ 语言任务 / TaskSpec  │
+└──────────┬───────────┘
+           │ 目标条件、房间条件、属性条件
+           ▼
+┌──────────────────────┐       ┌─────────────────────────────┐
+│ DeepSeek VLM         │◄──────│ Room/Object Memory          │
+│ 语义分类与候选选择   │       │ 证据、覆盖率、负证据、轨迹 │
+└──────────┬───────────┘       └──────────────┬──────────────┘
+           │ 语义子目标                       │
+           ▼                                  │
+┌──────────────────────┐                      │
+│ TARE                 │                      │
+│ 局部探索与可达视点   │                      │
+└──────────┬───────────┘                      │
+           │ /way_point                       │
+           ▼                                  │
+┌──────────────────────┐   /path、free_paths  │
+│ localPlanner         │──────────────────────┘
+│ 局部碰撞与路径       │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ pathFollower         │
+│ 速度控制             │
+└──────────┬───────────┘
+           ▼
+┌──────────────────────┐
+│ Go2 关节力矩策略     │
+└──────────┬───────────┘
+           │ 仿真运动和传感器反馈
+           └──────────────────────────────┐
+                                          ▼
+┌──────────────────────────────────────────────┐
+│ Isaac RGB-D / LiDAR / 位姿 / IMU             │
+│ YOLO + SAM、房间分割和物体观测               │
+└──────────┬───────────────────────────────────┘
+           │
+           ├──────────► Room/Object Memory ───► VLM
+           │
+           └──────────► Dashboard：RGB、轨迹、
+                         TARE、Waypoint、决策
+
+Oracle Evaluator 独立保存目标区域、停止条件和接触审计，
+只用于评测，不挂载给导航策略。
 ```
 
 系统职责边界如下：VLM 选择语义房间或观察候选，不生成速度和任意坐标；TARE 负责局部探索和可达视点；localPlanner 负责碰撞约束下的路径；pathFollower 和 Go2 策略负责执行。目标房间、目标包围盒和评测真值只进入独立 evaluator。
