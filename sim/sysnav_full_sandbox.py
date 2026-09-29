@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 
 class FullSysNavProcess:
-    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None,instruction=None,api_budget=150,enable_room_early_stop=False):
+    def __init__(self, project: Path, output: Path, stderr, task="lounge", api_proxy=None,instruction=None,api_budget=150,enable_room_early_stop=False,vision_gpu=1,sam_gpu=2,vlm_gpu=3):
         root = project.parent
         ros = root / "envs/ros"
         source = root / "deps/sysnav-full"
@@ -58,11 +58,13 @@ class FullSysNavProcess:
                "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp", "RCUTILS_LOGGING_USE_STDOUT": "0", "ROS_LOG_DIR": "/output/ros-logs"}
         env.update(VLM_PROVIDER='deepseek', DEEPSEEK_MODEL='deepseek-flash',
                    DEEPSEEK_API_KEY_FILE='/run/secrets/deepseek-api-key',
-                   SYSNAV_API_LOG='/output/api.jsonl', SYSNAV_MAX_API_CALLS=str(api_budget),
+                   SYSNAV_API_LOG='/output/api.jsonl', SYSNAV_TIMING_DIR='/output', SYSNAV_MAX_API_CALLS=str(api_budget),
                    SYSNAV_YOLO_MODEL='/models/sysnav/yoloe-26x-seg.pt',
                    SYSNAV_TEXT_EMBEDDINGS='/models/sysnav/text-embeddings.pt',
                    SYSNAV_SAM_CHECKPOINT='/models/sam/sam2.1_hiera_base_plus.pt',
-                   CUDA_VISIBLE_DEVICES='2', OMP_NUM_THREADS='4', OPENBLAS_NUM_THREADS='4',
+                   CUDA_VISIBLE_DEVICES=str(vlm_gpu), CUDA_DEVICE_ORDER='PCI_BUS_ID', SYSNAV_DETECTION_GPU=str(vision_gpu),
+                   SYSNAV_SEMANTIC_GPU=str(sam_gpu), SYSNAV_VLM_GPU=str(vlm_gpu),
+                   OMP_NUM_THREADS='4', OPENBLAS_NUM_THREADS='4',
                    YOLO_CONFIG_DIR='/tmp/yolo', MPLCONFIGDIR='/tmp/matplotlib')
         # Ten ROS processes exceed the small localhost discovery range used by
         # this Humble build. This config is limited to this process tree.

@@ -120,5 +120,35 @@ class DashboardTest(unittest.TestCase):
                 self.console.media('office:test',name)
 
 
+
+class DashboardNewFeatureTest(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(); self.root=Path(self.temp.name); self.project=self.root/'cross-building-floor-nav'; self.project.mkdir(); self.console=m.Console(self.root,self.project)
+    def tearDown(self): self.temp.cleanup()
+    def test_unlimited_sysnav_budget_and_gpu_flags(self):
+        checkpoint=self.project/'data/readiness/training/go2-control-v5-rails/model_3595.pt';checkpoint.parent.mkdir(parents=True);checkpoint.touch()
+        manifest=self.root/'assets/sysnav/provenance.json';manifest.parent.mkdir(parents=True);manifest.write_text('{}')
+        command,_,_,_=self.console.command('sysnav:lounge',-1,'unlimited')
+        self.assertIn('--max-seconds',command);self.assertEqual(command[command.index('--max-seconds')+1],'-1')
+        self.assertIn('--vision-gpu',command);self.assertIn('--sam-gpu',command);self.assertIn('--vlm-gpu',command)
+    def test_gui_requires_display(self):
+        with patch.dict('os.environ',{'DISPLAY':'','WAYLAND_DISPLAY':''},clear=False):
+            with patch.object(self.console,'ensure_api_relay'):
+                with self.assertRaisesRegex(ValueError,'DISPLAY'):
+                    self.console.start('sysnav:lounge',20,gui=True)
+    def test_planning_exposes_latest_objects(self):
+        run=self.project/'data/sim/office/runs/objects'; p=run/'agent/planning';p.mkdir(parents=True)
+        (run/'report.json').write_text('{"task":"lounge"}')
+        row={'time':1.,'robot':{'position':[0,0,0]},'layers':{}}
+        (p/'plan-0000001000.json').write_text(json.dumps(row));(p/'index.jsonl').write_text(json.dumps({**row,'file':'plan-0000001000.json'})+'\n')
+        (run/'agent/events.jsonl').write_text(json.dumps({'topic':'/object_nodes_list','time':1.,'objects':[{'id':7,'label':'chair','xyz':[1.,2.,.4]}]})+'\n'+json.dumps({'topic':'/object_nodes_list','time':2.,'objects':[{'id':99,'label':'future','xyz':[9.,2.,.4]}]})+'\n')
+        self.assertEqual(self.console.planning('office:objects',1.5)['objects'][0]['id'],7)
+    def test_detail_exposes_vlm_request_artifacts(self):
+        run=self.project/'data/sim/office/runs/api';(run/'agent/api_requests').mkdir(parents=True)
+        (run/'report.json').write_text('{"task":"lounge","mode":"sysnav_full"}')
+        (run/'agent/api_requests/call-0001-00.jpg').write_bytes(b'jpg')
+        (run/'agent/api.jsonl').write_text(json.dumps({'id':1,'time':1.,'purpose':'process_room_type_query','status':'ok','request_text':'inspect room','request_images':['api_requests/call-0001-00.jpg','../../private.jpg'],'result':{'reason':'visible'}})+'\n')
+        d=self.console.detail('office:api'); self.assertEqual(d['decisions'][0]['request_text'],'inspect room'); self.assertEqual(len(d['decisions'][0]['request_images']),1)
+
 if __name__=='__main__':
     unittest.main()

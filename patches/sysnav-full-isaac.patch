@@ -1,7 +1,7 @@
 From de4f6d08f7dda77ecde14dc7c88040648d4e3b66 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:32:16 +0800
-Subject: [PATCH 1/7] Port native SysNav semantics to Isaac panoramic sensors
+Subject: [PATCH 1/8] Port native SysNav semantics to Isaac panoramic sensors
  and DeepSeek
 
 ---
@@ -25,7 +25,7 @@ Subject: [PATCH 1/7] Port native SysNav semantics to Isaac panoramic sensors
  create mode 100644 src/vlm_node/vlm_node/deepseek_client.py
 
 diff --git a/src/exploration_planner/tare_planner/include/representation/representation.h b/src/exploration_planner/tare_planner/include/representation/representation.h
-index cab8125..9d46ae8 100644
+index cab81253..9d46ae85 100644
 --- a/src/exploration_planner/tare_planner/include/representation/representation.h
 +++ b/src/exploration_planner/tare_planner/include/representation/representation.h
 @@ -52,7 +52,11 @@
@@ -41,7 +41,7 @@ index cab8125..9d46ae8 100644
  namespace representation_ns
  {
 diff --git a/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h b/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
-index 00ded9d..8bdac49 100644
+index 00ded9d5..8bdac494 100644
 --- a/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
 +++ b/src/exploration_planner/tare_planner/include/room_segmentation/room_segmentation_node.h
 @@ -43,7 +43,11 @@
@@ -57,7 +57,7 @@ index 00ded9d..8bdac49 100644
  // Eigen
  #include <Eigen/Dense>
 diff --git a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
-index 5313247..884961b 100644
+index 5313247d..884961bc 100644
 --- a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
 +++ b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
 @@ -67,7 +67,11 @@
@@ -73,7 +73,7 @@ index 5313247..884961b 100644
  #include "tare_planner/msg/room_node_list.hpp"
  #include "tare_planner/msg/room_type.hpp"
 diff --git a/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp b/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
-index 291f7ea..2f82e84 100644
+index 291f7ead..2f82e842 100644
 --- a/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
 +++ b/src/exploration_planner/tare_planner/src/grid_world/grid_world.cpp
 @@ -17,6 +17,11 @@
@@ -116,7 +116,7 @@ index 291f7ea..2f82e84 100644
            {
              in_room = true;
 diff --git a/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp b/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
-index f42b4b8..b8056b2 100644
+index f42b4b82..b8056b20 100644
 --- a/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
 +++ b/src/exploration_planner/tare_planner/src/local_coverage_planner/local_coverage_planner.cpp
 @@ -246,6 +246,7 @@ namespace local_coverage_planner_ns
@@ -162,7 +162,7 @@ index f42b4b8..b8056b2 100644
        queue_idx = gen_next_queue_idx(gen);
        cur_ind = queue_copy[queue_idx].second;
 diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
-index 9193b06..0346b55 100644
+index 9193b067..0346b55b 100644
 --- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 +++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 @@ -2034,7 +2034,7 @@ void SensorCoveragePlanner3D::CheckDoorCloudInRange()
@@ -224,7 +224,7 @@ index 9193b06..0346b55 100644
    const int imageWidth = 1920;
    const int imageHeight = 640;
 diff --git a/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp b/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
-index 8f96ee4..a32156a 100644
+index 8f96ee46..a32156a0 100644
 --- a/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
 +++ b/src/exploration_planner/tare_planner/src/viewpoint_manager/viewpoint_manager.cpp
 @@ -537,7 +537,8 @@ void ViewPointManager::CheckViewPointBoundaryCollision()
@@ -238,7 +238,7 @@ index 8f96ee4..a32156a 100644
    for (int i = 0; i < vp_.kViewPointNumber; i++)
    {
 diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
-index 29e8909..cf4f6d1 100755
+index 29e89096..cf4f6d19 100755
 --- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 +++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 @@ -71,7 +71,7 @@ def scan2pixels_wheelchair(laserCloud):
@@ -251,7 +251,7 @@ index 29e8909..cf4f6d1 100755
  
      lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
 diff --git a/src/semantic_mapping/semantic_mapping/detection_node.py b/src/semantic_mapping/semantic_mapping/detection_node.py
-index 75cc420..c9883fa 100644
+index 75cc4203..c9883fac 100644
 --- a/src/semantic_mapping/semantic_mapping/detection_node.py
 +++ b/src/semantic_mapping/semantic_mapping/detection_node.py
 @@ -4,7 +4,7 @@
@@ -329,7 +329,7 @@ index 75cc420..c9883fa 100644
 \ No newline at end of file
 +    main()
 diff --git a/src/semantic_mapping/semantic_mapping/semantic_map_new.py b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
-index df93160..cd4eb18 100644
+index df93160e..cd4eb181 100644
 --- a/src/semantic_mapping/semantic_mapping/semantic_map_new.py
 +++ b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
 @@ -1,7 +1,7 @@
@@ -414,7 +414,7 @@ index df93160..cd4eb18 100644
              points = np.concatenate(points_list, axis=0)
              colors = np.concatenate(colors_list, axis=0)
 diff --git a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
-index 2139689..a47ff5f 100644
+index 21396890..a47ff5fb 100644
 --- a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
 +++ b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
 @@ -69,8 +69,8 @@ except ModuleNotFoundError:
@@ -463,7 +463,7 @@ index 2139689..a47ff5f 100644
 \ No newline at end of file
 +    main()
 diff --git a/src/semantic_mapping/semantic_mapping/utils.py b/src/semantic_mapping/semantic_mapping/utils.py
-index 013d5d1..f7addf4 100755
+index 013d5d18..f7addf4b 100755
 --- a/src/semantic_mapping/semantic_mapping/utils.py
 +++ b/src/semantic_mapping/semantic_mapping/utils.py
 @@ -87,8 +87,7 @@ def find_neighbouring_stamps(stamp_list, q):
@@ -477,7 +477,7 @@ index 013d5d1..f7addf4 100755
      # doc = nlp(str(label))
      # Include tokens that are nouns or verbs acting as nouns (gerunds)
 diff --git a/src/vlm_node/vlm_node/constants.py b/src/vlm_node/vlm_node/constants.py
-index 909fc6b..5ffd581 100644
+index 909fc6b1..5ffd581a 100644
 --- a/src/vlm_node/vlm_node/constants.py
 +++ b/src/vlm_node/vlm_node/constants.py
 @@ -8,7 +8,7 @@ DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
@@ -506,7 +506,7 @@ index 909fc6b..5ffd581 100644
      MODEL_NAME = os.environ.get("QWEN_MODEL", "qwen3.6-plus")
 diff --git a/src/vlm_node/vlm_node/deepseek_client.py b/src/vlm_node/vlm_node/deepseek_client.py
 new file mode 100644
-index 0000000..7bbf9c9
+index 00000000..7bbf9c90
 --- /dev/null
 +++ b/src/vlm_node/vlm_node/deepseek_client.py
 @@ -0,0 +1,63 @@
@@ -574,7 +574,7 @@ index 0000000..7bbf9c9
 +                    with self.log.open('a') as stream:
 +                        stream.write(json.dumps(row) + '\n')
 diff --git a/src/vlm_node/vlm_node/utils.py b/src/vlm_node/vlm_node/utils.py
-index 3e2baba..e4d32b7 100644
+index 3e2baba5..e4d32b77 100644
 --- a/src/vlm_node/vlm_node/utils.py
 +++ b/src/vlm_node/vlm_node/utils.py
 @@ -9,7 +9,7 @@ def project_bbox3d(img, bbox3d, transform_matrix, platform='mecanum'):
@@ -587,7 +587,7 @@ index 3e2baba..e4d32b7 100644
      lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
      lidarRoll = LIDAR_PARA["roll"] #  lidarRollStack[imageIDPointer]
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index 7ae46d3..d6428f8 100644
+index 7ae46d3e..d6428f8c 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -19,6 +19,7 @@ from vlm_node.constants import (
@@ -678,13 +678,13 @@ index 7ae46d3..d6428f8 100644
  
          # # save image for debugging
 -- 
-2.55.0
+2.34.1
 
 
 From 8496d75ba92b200979b2cfb445155c1cfd417420 Mon Sep 17 00:00:00 2001
 From: Codex <codex@local>
 Date: Mon, 28 Sep 2026 01:45:40 +0800
-Subject: [PATCH 2/7] Fix ROS object identifiers and constrain task
+Subject: [PATCH 2/8] Fix ROS object identifiers and constrain task
  decomposition to detector vocabulary
 
 ---
@@ -695,7 +695,7 @@ Subject: [PATCH 2/7] Fix ROS object identifiers and constrain task
  4 files changed, 13 insertions(+), 7 deletions(-)
 
 diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
-index cf4f6d1..7f68c6b 100755
+index cf4f6d19..7f68c6b9 100755
 --- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 +++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 @@ -102,6 +102,7 @@ def scan2pixels_mecanum_sim(laserCloud):
@@ -716,7 +716,7 @@ index cf4f6d1..7f68c6b 100755
      # 过滤后的结果
      horiPixelID[remove_mask] = -1
 diff --git a/src/semantic_mapping/semantic_mapping/semantic_map_new.py b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
-index cd4eb18..b5eae18 100644
+index cd4eb181..b5eae184 100644
 --- a/src/semantic_mapping/semantic_mapping/semantic_map_new.py
 +++ b/src/semantic_mapping/semantic_mapping/semantic_map_new.py
 @@ -574,7 +574,7 @@ class ObjMapper():
@@ -747,7 +747,7 @@ index cd4eb18..b5eae18 100644
              # if this object is target object and haven't been checked by the vlm, we give it a fake label
              if label == self.target_object and not single_obj.is_asked_vlm:
 diff --git a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
-index a47ff5f..1f4df3b 100644
+index a47ff5fb..1f4df3b3 100644
 --- a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
 +++ b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
 @@ -754,7 +754,7 @@ class MappingNode(Node):
@@ -760,7 +760,7 @@ index a47ff5f..1f4df3b 100644
              object_type_query.labels = obj['labels']
              self.object_type_query_pub.publish(object_type_query)
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index d6428f8..152db0a 100644
+index d6428f8c..152db0a1 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -21,6 +21,7 @@ from rviz_2d_overlay_msgs.msg import OverlayText
@@ -797,20 +797,20 @@ index d6428f8..152db0a 100644
          try:
              completion = self.vlm_model.beta.chat.completions.parse(
 -- 
-2.55.0
+2.34.1
 
 
 From 13f567ae1fdcbb661dd43301d6efc9d6fd3ac7e5 Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 02:34:46 +0800
-Subject: [PATCH 3/7] Use floating-point font size in ROS overlay messages
+Subject: [PATCH 3/8] Use floating-point font size in ROS overlay messages
 
 ---
  src/vlm_node/vlm_node/vlm_reasoning_node.py | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index 152db0a..0a3d63e 100644
+index 152db0a1..0a3d63ea 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -375,7 +375,7 @@ class VLMNode(Node):
@@ -832,13 +832,13 @@ index 152db0a..0a3d63e 100644
  
          threading.Timer(duration, clear_text).start()
 -- 
-2.55.0
+2.34.1
 
 
 From 1abffc718c482d1dd673edd9dae14be28d7a5f27 Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 04:00:14 +0800
-Subject: [PATCH 4/7] Restore upstream startup waypoint and instruction schema
+Subject: [PATCH 4/8] Restore upstream startup waypoint and instruction schema
  for system parity
 
 ---
@@ -847,7 +847,7 @@ Subject: [PATCH 4/7] Restore upstream startup waypoint and instruction schema
  2 files changed, 3 insertions(+), 8 deletions(-)
 
 diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
-index 0346b55..9b33535 100644
+index 0346b55b..9b335351 100644
 --- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 +++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 @@ -2034,7 +2034,7 @@ void SensorCoveragePlanner3D::CheckDoorCloudInRange()
@@ -860,7 +860,7 @@ index 0346b55..9b33535 100644
    double dx = cos(robot_yaw_) * lx - sin(robot_yaw_) * ly;
    double dy = sin(robot_yaw_) * lx + cos(robot_yaw_) * ly;
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index 0a3d63e..3247737 100644
+index 0a3d63ea..32477374 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -21,7 +21,6 @@ from rviz_2d_overlay_msgs.msg import OverlayText
@@ -897,13 +897,13 @@ index 0a3d63e..3247737 100644
          try:
              completion = self.vlm_model.beta.chat.completions.parse(
 -- 
-2.55.0
+2.34.1
 
 
 From 7d4c9b1b2e1dc1c86fd85fb90fc0a1e95b1bd103 Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 04:10:06 +0800
-Subject: [PATCH 5/7] Calibrate camera projection to the physical LiDAR pose
+Subject: [PATCH 5/8] Calibrate camera projection to the physical LiDAR pose
  supplied to SysNav
 
 ---
@@ -913,7 +913,7 @@ Subject: [PATCH 5/7] Calibrate camera projection to the physical LiDAR pose
  3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
-index 9b33535..00a916e 100644
+index 9b335351..00a916e6 100644
 --- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 +++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
 @@ -2253,7 +2253,7 @@ void SensorCoveragePlanner3D::UpdateObjectVisibility()
@@ -944,7 +944,7 @@ index 9b33535..00a916e 100644
    const int imageWidth = 1920;
    const int imageHeight = 640;
 diff --git a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
-index 7f68c6b..7822e7a 100755
+index 7f68c6b9..7822e7a9 100755
 --- a/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 +++ b/src/semantic_mapping/semantic_mapping/cloud_image_fusion.py
 @@ -71,7 +71,7 @@ def scan2pixels_wheelchair(laserCloud):
@@ -957,7 +957,7 @@ index 7f68c6b..7822e7a 100755
  
      lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
 diff --git a/src/vlm_node/vlm_node/utils.py b/src/vlm_node/vlm_node/utils.py
-index e4d32b7..4269381 100644
+index e4d32b77..4269381b 100644
 --- a/src/vlm_node/vlm_node/utils.py
 +++ b/src/vlm_node/vlm_node/utils.py
 @@ -9,7 +9,7 @@ def project_bbox3d(img, bbox3d, transform_matrix, platform='mecanum'):
@@ -970,13 +970,13 @@ index e4d32b7..4269381 100644
      lidar_offset = np.array([LIDAR_PARA["x"], LIDAR_PARA["y"], LIDAR_PARA["z"]])
      lidarRoll = LIDAR_PARA["roll"] #  lidarRollStack[imageIDPointer]
 -- 
-2.55.0
+2.34.1
 
 
 From 3ca95df6ebd67ae89c47cd8294be2b7b777e7189 Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 04:36:00 +0800
-Subject: [PATCH 6/7] Enforce detector label identifiers across native language
+Subject: [PATCH 6/8] Enforce detector label identifiers across native language
  and object messages
 
 ---
@@ -987,7 +987,7 @@ Subject: [PATCH 6/7] Enforce detector label identifiers across native language
 
 diff --git a/src/vlm_node/vlm_node/label_contract.py b/src/vlm_node/vlm_node/label_contract.py
 new file mode 100644
-index 0000000..c1e6d91
+index 00000000..c1e6d916
 --- /dev/null
 +++ b/src/vlm_node/vlm_node/label_contract.py
 @@ -0,0 +1,12 @@
@@ -1004,7 +1004,7 @@ index 0000000..c1e6d91
 +    # Unsupported classes remain explicit, never silently converted to unknown.
 +    return candidates[0] if candidates else value.strip().lower()
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index 3247737..3627eaa 100644
+index 32477374..3627eaad 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -20,6 +20,7 @@ from tare_planner.msg import RoomType, RoomEarlyStop1, VlmAnswer, ObjectType, Na
@@ -1049,13 +1049,13 @@ index 3247737..3627eaa 100644
              self.instruction = instruction.lower()
              self.instruction_anchor = f"Find a {self.attribute_condition_anchor} {self.anchor_object} {self.room_condition}."
 -- 
-2.55.0
+2.34.1
 
 
 From d155038a40598c8361a45b3c8b248814e408e32e Mon Sep 17 00:00:00 2001
 From: mac <mac@macdeMacBook-Pro-3.local>
 Date: Mon, 28 Sep 2026 04:48:45 +0800
-Subject: [PATCH 7/7] Expose the upstream disabled early-stop dispatch as an
+Subject: [PATCH 7/8] Expose the upstream disabled early-stop dispatch as an
  opt-in experiment
 
 ---
@@ -1063,7 +1063,7 @@ Subject: [PATCH 7/7] Expose the upstream disabled early-stop dispatch as an
  1 file changed, 6 insertions(+), 5 deletions(-)
 
 diff --git a/src/vlm_node/vlm_node/vlm_reasoning_node.py b/src/vlm_node/vlm_node/vlm_reasoning_node.py
-index 3627eaa..68b64a2 100644
+index 3627eaad..68b64a2e 100644
 --- a/src/vlm_node/vlm_node/vlm_reasoning_node.py
 +++ b/src/vlm_node/vlm_node/vlm_reasoning_node.py
 @@ -36,6 +36,10 @@ import yaml
@@ -1099,5 +1099,183 @@ index 3627eaa..68b64a2 100644
                      answer_msg = VlmAnswer()
                      answer_msg.room_id = room_id_2  # continue to explore room_id_2
 -- 
-2.55.0
+2.34.1
+
+
+From 96db97f18bab2c7d54b4dacd22d1ceecb25c8eab Mon Sep 17 00:00:00 2001
+From: shawn <674834119@qq.com>
+Date: Mon, 28 Sep 2026 15:33:07 +0800
+Subject: [PATCH 8/8] Record VLM request artifacts and perception inference
+ timings
+
+---
+ .../semantic_mapping/detection_node.py        |  3 +
+ .../semantic_mapping/inference_telemetry.py   | 15 +++++
+ .../semantic_mapping/semantic_mapping_node.py |  4 ++
+ src/vlm_node/vlm_node/deepseek_client.py      | 58 ++++++++++++++++++-
+ 4 files changed, 78 insertions(+), 2 deletions(-)
+ create mode 100644 src/semantic_mapping/semantic_mapping/inference_telemetry.py
+
+diff --git a/src/semantic_mapping/semantic_mapping/detection_node.py b/src/semantic_mapping/semantic_mapping/detection_node.py
+index c9883fac..7d80b1c6 100644
+--- a/src/semantic_mapping/semantic_mapping/detection_node.py
++++ b/src/semantic_mapping/semantic_mapping/detection_node.py
+@@ -8,6 +8,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+ 
+ # ========== Standard Library ==========
+ import time
++from .inference_telemetry import record_timing
+ from collections import deque
+ from pathlib import Path
+ 
+@@ -170,7 +171,9 @@ class DetectNode(Node):
+         self.call_back_time_stamp = start_time
+ 
+         # ================== Process detection and tracking ==================
++        infer_started=time.perf_counter()
+         detections = self.inference(image)
++        record_timing('yolo',detection_stamp,(time.perf_counter()-infer_started)*1000)
+         detection_time = time.time()
+ 
+         image_anno = image.copy()
+diff --git a/src/semantic_mapping/semantic_mapping/inference_telemetry.py b/src/semantic_mapping/semantic_mapping/inference_telemetry.py
+new file mode 100644
+index 00000000..762ecf89
+--- /dev/null
++++ b/src/semantic_mapping/semantic_mapping/inference_telemetry.py
+@@ -0,0 +1,15 @@
++"""Optional inference timings for simulation observability."""
++import json
++import os
++from pathlib import Path
++
++
++def record_timing(name, stamp, milliseconds):
++    root=os.environ.get('SYSNAV_TIMING_DIR')
++    if not root: return
++    try:
++        with (Path(root)/(name+'_timing.jsonl')).open('a') as stream:
++            stream.write(json.dumps({'time':float(stamp),'milliseconds':float(milliseconds),
++                                    'gpu':os.environ.get('CUDA_VISIBLE_DEVICES')})+'\n')
++    except OSError:
++        pass  # Metrics must not interrupt the native decision or perception path.
+diff --git a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+index 1f4df3b3..cdaeb453 100644
+--- a/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
++++ b/src/semantic_mapping/semantic_mapping/semantic_mapping_node.py
+@@ -57,6 +57,7 @@ from .cloud_image_fusion import CloudImageFusion
+ 
+ import yaml
+ import time
++from .inference_telemetry import record_timing
+ from line_profiler import profile
+ 
+ from tare_planner.msg import ObjectNode, ObjectNodeList, DetectionResult
+@@ -418,6 +419,7 @@ class MappingNode(Node):
+             # ================== Infer Masks ==================
+             # sam2
+             sam2_start = time.time()
++            infer_started=time.perf_counter()
+             with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+                 self.mask_predictor.set_image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+ 
+@@ -436,6 +438,8 @@ class MappingNode(Node):
+                 else: # no information need to add to map
+                     detections_tracked['masks'] = []
+                     # return
++            torch.cuda.synchronize()
++            record_timing('sam',detection_stamp,(time.perf_counter()-infer_started)*1000)
+             sam2_time = time.time() - sam2_start
+ 
+             annotate_start = time.time()
+diff --git a/src/vlm_node/vlm_node/deepseek_client.py b/src/vlm_node/vlm_node/deepseek_client.py
+index 7bbf9c90..f6064092 100644
+--- a/src/vlm_node/vlm_node/deepseek_client.py
++++ b/src/vlm_node/vlm_node/deepseek_client.py
+@@ -3,7 +3,10 @@
+ Only the wire format changes: JSON mode plus local Pydantic validation. Native
+ query queues, prompts, images, and result consumers remain in vlm_reasoning_node.
+ """
++import base64
++import binascii
+ import inspect
++import io
+ import json
+ import os
+ from pathlib import Path
+@@ -23,6 +26,54 @@ class DeepSeekClient:
+         self.calls = 0
+         self.log = Path(os.environ.get('SYSNAV_API_LOG', 'debug/api.jsonl'))
+ 
++    def _request_artifacts(self, call_id, messages):
++        """Persist a safe, small replay artifact for the dashboard.
++
++        Only the prompt text and decoded image bytes are recorded.  Remote image
++        URLs are ignored because they may contain credentials and are not
++        replayable from the isolated run directory.
++        """
++        text_parts=[]
++        images=[]
++        for message in messages:
++            content=message.get('content','') if isinstance(message, dict) else ''
++            blocks=content if isinstance(content,list) else [{'type':'text','text':str(content)}]
++            for block in blocks:
++                if not isinstance(block,dict):
++                    continue
++                if block.get('type')=='text':
++                    value=str(block.get('text',''))
++                    if value:
++                        text_parts.append('['+str(message.get('role','unknown'))+']\n'+value)
++                elif block.get('type')=='image_url':
++                    image_url=block.get('image_url',{})
++                    url=image_url.get('url','') if isinstance(image_url,dict) else ''
++                    if not isinstance(url,str) or not url.startswith('data:image/'):
++                        continue
++                    try:
++                        encoded=url.split(',',1)[1]
++                        raw=base64.b64decode(encoded, validate=True)
++                        images.append(raw)
++                    except (ValueError, binascii.Error, IndexError):
++                        continue
++        root=self.log.parent/'api_requests'
++        root.mkdir(parents=True,exist_ok=True)
++        relative=[]
++        try:
++            from PIL import Image
++            for index, raw in enumerate(images[:8]):
++                try:
++                    image=Image.open(io.BytesIO(raw)).convert('RGB')
++                    image.thumbnail((320,240), Image.Resampling.LANCZOS)
++                    target=root/f'call-{call_id:04d}-{index:02d}.jpg'
++                    image.save(target,format='JPEG',quality=82,optimize=True)
++                    relative.append(str(Path('api_requests')/target.name))
++                except (OSError, ValueError):
++                    continue
++        except ImportError:
++            pass
++        return '\n\n'.join(text_parts), relative
++
+     def parse(self, *, model, messages, response_format):
+         frame = inspect.currentframe().f_back
+         purpose = frame.f_code.co_name
+@@ -37,12 +88,15 @@ class DeepSeekClient:
+             with self.lock:
+                 self.calls += 1
+                 call_id = self.calls
+-                if call_id > int(os.environ.get('SYSNAV_MAX_API_CALLS', '150')):
++                budget=int(os.environ.get('SYSNAV_MAX_API_CALLS', '150'))
++                if budget>=0 and call_id>budget:
+                     raise RuntimeError('SysNav API call budget exhausted')
+             start = time.monotonic()
++            request_text, request_images = self._request_artifacts(call_id, messages)
+             row = {'id': call_id, 'purpose': purpose, 'model': model, 'time': simulation_time,
+                    'images': sum(b.get('type') == 'image_url' for m in messages
+-                                 for b in (m['content'] if isinstance(m['content'], list) else []))}
++                                 for b in (m['content'] if isinstance(m['content'], list) else [])),
++                   'request_text': request_text, 'request_images': request_images}
+             try:
+                 result = self.client.chat.completions.create(
+                     model=model, messages=messages, temperature=0, max_tokens=1800,
+-- 
+2.34.1
 

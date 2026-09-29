@@ -1,0 +1,105 @@
+diff --git a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+index 884961bc..1758e464 100644
+--- a/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
++++ b/src/exploration_planner/tare_planner/include/sensor_coverage_planner/sensor_coverage_planner_ground.h
+@@ -143,6 +143,8 @@ private:
+   double kLookAheadDistance;
+   double kExtendWayPointDistanceBig;
+   double kExtendWayPointDistanceSmall;
++  // Maximum planar distance from the base to the target object's 3D box before stopping.
++  double kObjectStopFootprintDistance;
+ 
+   // Int
+   int kDirectionChangeCounterThr;
+diff --git a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+index 00a916e6..7a48ad9e 100644
+--- a/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
++++ b/src/exploration_planner/tare_planner/src/sensor_coverage_planner/sensor_coverage_planner_ground.cpp
+@@ -12,6 +12,9 @@
+ #include "sensor_coverage_planner/sensor_coverage_planner_ground.h"
+ #include "graph/graph.h"
+ #include <memory>
++#include <algorithm>
++#include <cmath>
++#include <limits>
+ #include <unordered_map>
+ #include <tf2/LinearMath/Matrix3x3.h>
+ #include <tf2/LinearMath/Quaternion.h>
+@@ -72,6 +75,7 @@ void SensorCoveragePlanner3D::ReadParameters() {
+   this->declare_parameter<double>("kLookAheadDistance", 5.0);
+   this->declare_parameter<double>("kExtendWayPointDistanceBig", 8.0);
+   this->declare_parameter<double>("kExtendWayPointDistanceSmall", 3.0);
++  this->declare_parameter<double>("kObjectStopFootprintDistance", 0.9);
+ 
+   // Int
+   this->declare_parameter<int>("kDirectionChangeCounterThr", 4);
+@@ -239,6 +243,8 @@ void SensorCoveragePlanner3D::ReadParameters() {
+   this->get_parameter("kExtendWayPointDistanceBig", kExtendWayPointDistanceBig);
+   this->get_parameter("kExtendWayPointDistanceSmall",
+                       kExtendWayPointDistanceSmall);
++  this->get_parameter("kObjectStopFootprintDistance",
++                      kObjectStopFootprintDistance);
+ 
+   this->get_parameter("kDirectionChangeCounterThr", kDirectionChangeCounterThr);
+   this->get_parameter("kDirectionNoChangeCounterThr",
+@@ -4487,13 +4493,57 @@ void SensorCoveragePlanner3D::CheckObjectFound()
+                                                      std::pow(robot_position_.y - found_object_position_.y, 2) +
+                                                      std::pow(robot_position_.z - found_object_position_.z, 2));
+     RCLCPP_INFO(this->get_logger(), "Distance to the found object: %.2f meters", found_object_distance_);
+-    if (found_object_distance_ < 1.0 && euclidean_distance_to_object_ < 2.0)
++    // The keypose graph can under-estimate the final approach distance when its
++    // last node is stale or lies on the opposite side of an object.  Stopping
++    // from that graph distance alone caused false-positive stops at the edge of
++    // the evaluator's target region.  Prefer the observed 3-D object box and
++    // measure distance to its planar footprint; this is the same geometric
++    // quantity used by the independent simulator evaluator.  Keep a 0.1 m
++    // margin so the local planner gets another waypoint before the terminal
++    // stop.  If an old object message has no valid box, retain the legacy
++    // distance gate as a compatibility fallback.
++    double footprint_distance = 0.0;
++    double box_min_x = std::numeric_limits<double>::infinity();
++    double box_max_x = -std::numeric_limits<double>::infinity();
++    double box_min_y = std::numeric_limits<double>::infinity();
++    double box_max_y = -std::numeric_limits<double>::infinity();
++    for (const auto &corner : representation_->GetObjectNodeRep(found_object_id_).bbox3d_)
+     {
+-      ask_found_object_ = true;
++      if (std::isfinite(corner.x) && std::isfinite(corner.y))
++      {
++        box_min_x = std::min(box_min_x, corner.x);
++        box_max_x = std::max(box_max_x, corner.x);
++        box_min_y = std::min(box_min_y, corner.y);
++        box_max_y = std::max(box_max_y, corner.y);
++      }
++    }
++    const bool valid_box = std::isfinite(box_min_x) && std::isfinite(box_max_x) &&
++                           std::isfinite(box_min_y) && std::isfinite(box_max_y) &&
++                           box_max_x > box_min_x && box_max_y > box_min_y;
++    if (valid_box)
++    {
++      const double dx = std::max({box_min_x - robot_position_.x, 0.0,
++                                  robot_position_.x - box_max_x});
++      const double dy = std::max({box_min_y - robot_position_.y, 0.0,
++                                  robot_position_.y - box_max_y});
++      footprint_distance = std::sqrt(dx * dx + dy * dy);
++      // The graph distance is retained for diagnostics but is not a stop
++      // prerequisite: it can remain stale after the robot has reached the
++      // observed object footprint.
++      ask_found_object_ = (footprint_distance <= kObjectStopFootprintDistance &&
++                           euclidean_distance_to_object_ < 2.0);
++      RCLCPP_INFO(this->get_logger(),
++                  "Target footprint distance: %.2f m (stop threshold %.2f m)%s",
++                  footprint_distance, kObjectStopFootprintDistance,
++                  ask_found_object_ ? " -> stop" : " -> approach");
+     }
+     else
+     {
+-      ask_found_object_ = false;
++      ask_found_object_ = (found_object_distance_ < 1.0 &&
++                           euclidean_distance_to_object_ < 2.0);
++      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
++                           "Target object %d has no valid 3-D box; using legacy stop gate",
++                           found_object_id_);
+     }
+ 
+     if (current_room_id_ == found_object_room_id_)

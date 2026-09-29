@@ -1,7 +1,7 @@
 {
   "upstream": "https://github.com/zwandering/SysNav",
   "upstream_revision": "478727e5a559be22822d5d093b57431449336287",
-  "port_revision": "d155038a40598c8361a45b3c8b248814e408e32e",
+  "port_revision": "96db97f18bab2c7d54b4dacd22d1ceecb25c8eab",
   "patch": "patches/sysnav-full-isaac.patch",
   "runtime": "RoboStack Humble Python3.12 + isolated CUDA12.8 Python overlay",
   "provider": "DeepSeek",

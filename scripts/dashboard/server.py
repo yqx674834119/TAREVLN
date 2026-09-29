@@ -1,4 +1,4 @@
-"""Loopback-only simulation console. Launches only its own allowlisted jobs."""
+"""Simulation console. Launches only its own allowlisted jobs."""
 from __future__ import annotations
 import argparse
 import gzip
@@ -192,9 +192,10 @@ class Console:
         for r in entries:
             points=r.get('waypoint')
             if points and (not history or points[0]!=history[-1]):history.append(points[0])
+        planning_time=result.get('time', timestamp)
         return dict(available=True,**result,trail=trail[::max(1,len(trail)//1500)],
-                    waypoint_history=history[-250:],
-                    **self.room_state(record, entries, result.get('time', timestamp)))
+                    waypoint_history=history[-250:], objects=self.object_state(record, planning_time),
+                    **self.room_state(record, entries, planning_time))
 
     def room_state(self, record, entries, timestamp):
         """Return downsampled native /room_mask data and room-node labels.
@@ -287,6 +288,26 @@ class Console:
                     current_id=value if value>0 else None
         return dict(room_mask=mask_info,rooms=rooms,current_room_id=current_id)
 
+    def object_state(self, record, timestamp):
+        events=read_lines(record['path']/'agent/events.jsonl')
+        snapshots=[e for e in events if e.get('topic')=='/object_nodes_list' and e.get('time',0)<=timestamp+.001]
+        if not snapshots:
+            return []
+        objects=[]
+        for item in snapshots[-1].get('objects',[]):
+            try:
+                xyz=[float(v) for v in item.get('xyz',[])[:3]]
+                if len(xyz)==3 and all(math.isfinite(v) for v in xyz):
+                    objects.append(dict(id=item.get('id'),label=str(item.get('label','unknown')),xyz=xyz))
+            except (TypeError,ValueError):
+                continue
+        return objects
+
+    def runtime_metrics(self, record, timestamp):
+        rows=read_lines(record['path']/'runtime_metrics.jsonl')
+        eligible=[row for row in rows if row.get('time',timestamp)<=timestamp+.001]
+        return eligible[-1] if eligible else None
+
     def detail(self, identifier):
         r = self.record(identifier)
         now = time.monotonic()
@@ -334,17 +355,28 @@ class Console:
             for call in read_lines(p/'agent/api.jsonl'):
                 result=call.get('result',{})
                 summary={k:v for k,v in result.items() if k not in ('steps','reason')}
+                request_images=[]
+                for relative in call.get('request_images',[]):
+                    if not isinstance(relative,str) or not re.fullmatch(r'api_requests/call-\d{4,}-\d{2}\.jpg',relative):
+                        continue
+                    image_path=p/'agent'/relative
+                    if image_path.is_file() and not image_path.is_symlink():
+                        request_images.append(self.image_url(r,image_path))
                 decisions.append(dict(index=call['id'],t=call.get('time') or 0,
                     purpose=call['purpose'],latency=call.get('seconds'),
                     evidence=json.dumps(summary,ensure_ascii=False),
+                    request_text=call.get('request_text',''), request_images=request_images,
+                    api_status=call.get('status'),error_type=call.get('error_type'),
                     reason=result.get('reason', '已返回结构化结果' if call['status']=='ok' else 'API 调用失败：'+call.get('error_type','unknown'))))
             current = rows[-1] if rows else {}
+            runtime_metrics=self.runtime_metrics(r,current.get('time',0))
             progress = dict(time=current.get('time',0), speed=current.get('speed'),
                 action=current.get('action',{}).get('reason'),
                 vlm_calls=current.get('action',{}).get('vlm_calls',len(decisions)),
                 path_nodes=current.get('action',{}).get('path_nodes'),
                 modules=current.get('action',{}).get('counts',{}),
-                rooms=current.get('action',{}).get('rooms'),objects=current.get('action',{}).get('objects'))
+                rooms=current.get('action',{}).get('rooms'),objects=current.get('action',{}).get('objects'),
+                runtime_metrics=runtime_metrics)
             result = {k:report.get(k) for k in ['success','status','simulation_seconds','wall_seconds','distance_m',
                 'contact_quality_passed','odometry','surface_geometry','physical_hardware_ready',
                 'acceptance_passed','evaluation_definition','independent_object_evaluation','instruction',
@@ -381,30 +413,37 @@ class Console:
         self.cache[identifier] = (now,result)
         return result
 
-    def command(self, task_id, duration, name):
+    def command(self, task_id, duration, name, gui=False):
+        if isinstance(duration,bool) or duration not in (-1,20,30,60,120,300):
+            raise ValueError('Unsupported duration')
+        duration=int(duration)
         base = ['bash', str(self.project/'scripts/with_gpu_compat.sh')]
         if task_id.startswith('isaacmp3d:') and task_id[10:] in self.episodes:
-            if duration not in (20,30,60,120,300):raise ValueError('Unsupported duration')
+            if duration not in (-1,20,30,60,120,300):raise ValueError('Unsupported duration')
             if not (self.root/'assets/mp3d-isaac/x8F5xyUWy9e/scene.usda').exists():
                 raise ValueError('Converted MP3D scene unavailable')
             command=base+['python3','-u','scripts/benchmarks/run_isaac_mp3d.py','--name',name,
                 '--episode-id',task_id[10:],'--max-seconds',str(duration)]
+            if gui: command+=['--gui']
             record_path=self.project/'data/sim/office/runs'/name
             return command,record_path,'office:'+name,record_path
         if task_id.startswith('sysnav:') and task_id[7:] in SYSNAV_TASKS:
-            if duration not in (20,30,60,120,300):
+            if duration != -1 and duration not in (-1,20,30,60,120,300):
                 raise ValueError('Unsupported duration')
             checkpoint=self.project/'data/readiness/training/go2-control-v5-rails/model_3595.pt'
             if not checkpoint.exists() or not (self.root/'assets/sysnav/provenance.json').exists():
                 raise ValueError('Full SysNav models or Go2 checkpoint unavailable')
             command=base+[str(self.root/'envs/isaac51/bin/python'),'-u','sim/run_sysnav_full.py',
                 '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
-                '--odometry','gicp','--lidar-profile','uniform64','--api-proxy',self.api_proxy]
-            if task_id=='sysnav:meeting_crossroom':command+=['--api-budget','600']
+                '--odometry','gicp','--lidar-profile','uniform64','--api-proxy',self.api_proxy,
+                '--isaac-gpu','0','--vision-gpu','1','--sam-gpu','2','--vlm-gpu','3']
+            if gui: command += ['--gui']
+            if duration==-1: command+=['--api-budget','-1']
+            elif task_id=='sysnav:meeting_crossroom':command+=['--api-budget','600']
             record_path=self.project/'data/sim/office/runs'/name
             return command,record_path,'office:'+name,record_path
         if task_id.startswith('office:') and task_id[7:] in TASKS:
-            if duration not in (20,30,60,120,300):
+            if duration not in (-1,20,30,60,120,300):
                 raise ValueError('Unsupported duration')
             checkpoint = self.project/'data/readiness/training/go2-control-v5-rails/model_3595.pt'
             if not checkpoint.exists():
@@ -413,9 +452,11 @@ class Console:
                 '--name',name,'--task',task_id[7:],'--max-seconds',str(duration),'--checkpoint',str(checkpoint),
                 '--odometry','gicp','--gicp-correspondence','.5','--lidar-profile','uniform64',
                 '--sam','--surface-geometry','metric_plane','--api-proxy',self.api_proxy]
+            if gui: command+=['--gui']
             record_path = self.project/'data/sim/office/runs'/name
             return command, record_path, 'office:'+name, record_path
         if task_id.startswith('habitat:') and task_id[8:] in self.episodes:
+            if duration==-1 or gui: raise ValueError('Habitat benchmark uses its fixed action budget')
             output = self.root/'outputs/benchmarks'/name
             command = base+[str(self.root/'envs/habitat-bench/bin/python'),'-u','scripts/benchmarks/run_habitat.py',
                 '--policies','vlm','--episode-id',task_id[8:],'--output',str(output)]
@@ -423,13 +464,24 @@ class Console:
             return command, record_path, 'habitat:'+name+':'+task_id[8:], output
         raise ValueError('Unknown task')
 
-    def start(self, task_id, duration):
+    def start(self, task_id, duration, gui=False):
+        if not isinstance(gui,bool): raise ValueError('Invalid GUI flag')
         with self.lock:
             if any(j['process'].poll() is None for j in self.jobs.values()):
                 raise ValueError('A dashboard simulation is already active')
+            if gui and not task_id.startswith(('sysnav:','isaacmp3d:','office:')):
+                raise ValueError('GUI requires an Isaac task')
+            if gui and not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+                raise ValueError('Isaac GUI requires DISPLAY or WAYLAND_DISPLAY; connect X/VNC first.')
+            if gui:
+                try:
+                    probe=subprocess.run(['xdpyinfo'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=3)
+                except (OSError,subprocess.TimeoutExpired):
+                    raise ValueError('Cannot access Isaac desktop display') from None
+                if probe.returncode: raise ValueError('Cannot access Isaac desktop display')
             self.ensure_api_relay()
             name = 'ui-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:5]
-            command,path,record_id,stop_root = self.command(task_id,duration,name)
+            command,path,record_id,stop_root = self.command(task_id,duration,name,gui=gui)
             log_path = self.root/'logs'/('dashboard-'+name+'.log')
             log_path.parent.mkdir(parents=True,exist_ok=True)
             with log_path.open('w') as log:
@@ -472,7 +524,11 @@ class Handler(BaseHTTPRequestHandler):
             super().log_message(fmt,*args)
 
     def trusted_host(self):
-        return self.headers.get('Host') in ('127.0.0.1:'+str(self.server.server_port),'localhost:'+str(self.server.server_port))
+        address = self.connection.getsockname()[0]
+        allowed = {address+':'+str(self.server.server_port)}
+        if address == '127.0.0.1':
+            allowed.add('localhost:'+str(self.server.server_port))
+        return self.headers.get('Host') in allowed
 
     def send(self, value, status=200, content_type='application/json; charset=utf-8'):
         content = json.dumps(value,ensure_ascii=False).encode() if not isinstance(value,bytes) else value
@@ -523,7 +579,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid request size')
             body = json.loads(self.rfile.read(size))
             if self.path=='/api/start':
-                return self.send(self.server.console.start(str(body.get('task_id','')),body.get('duration',120)))
+                return self.send(self.server.console.start(str(body.get('task_id','')),body.get('duration',120),gui=body.get('gui',False)))
             if self.path=='/api/stop':
                 return self.send(self.server.console.stop(str(body.get('job_id',''))))
             return self.send({'error':'Not found'},404)
@@ -534,8 +590,22 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port',type=int,default=8878)
+    parser.add_argument('--lan-ip',help='Also listen on this LAN IPv4 address')
     args = parser.parse_args()
-    server = ThreadingHTTPServer(('127.0.0.1',args.port),Handler)
-    server.console = Console()
-    print('VLN console on loopback port',args.port,flush=True)
-    server.serve_forever()
+    addresses = ['127.0.0.1']
+    if args.lan_ip and args.lan_ip not in addresses:
+        addresses.append(args.lan_ip)
+    console = Console()
+    servers = []
+    try:
+        for address in addresses:
+            server = ThreadingHTTPServer((address,args.port),Handler)
+            server.console = console
+            servers.append(server)
+        for server in servers[1:]:
+            threading.Thread(target=server.serve_forever,daemon=True).start()
+        print('VLN console listening on '+', '.join(addresses)+':'+str(args.port),flush=True)
+        servers[0].serve_forever()
+    finally:
+        for server in servers:
+            server.server_close()

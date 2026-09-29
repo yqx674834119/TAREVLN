@@ -7,6 +7,7 @@ import argparse
 import base64
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -209,7 +210,14 @@ def main():
                 cmd+=['-p','boundary_file_dir:='+str(args.boundary)]
             if executable=='vlm_reasoning_node':
                 cmd+=['-p','enable_room_early_stop:='+str(args.enable_room_early_stop).lower()]
-            children.append(subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT))
+            child_env=os.environ.copy()
+            gpu_by_node={'detection_node':'SYSNAV_DETECTION_GPU',
+                         'semantic_mapping_node':'SYSNAV_SEMANTIC_GPU',
+                         'vlm_reasoning_node':'SYSNAV_VLM_GPU'}
+            gpu_name=gpu_by_node.get(executable)
+            if gpu_name:
+                child_env['CUDA_VISIBLE_DEVICES']=child_env.get(gpu_name,child_env.get('CUDA_VISIBLE_DEVICES','0'))
+            children.append(subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,env=child_env))
         sent=False
         runtime_saved=False
         trace=(args.output/'bridge.jsonl').open('w',buffering=1)
